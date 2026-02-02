@@ -364,14 +364,33 @@ def get_agent(agent_name: str) -> Optional[Agent]:
     return AGENTS.get(agent_name.lower())
 
 
+def get_client(api_key: str, provider: str = "anthropic"):
+    """Create an API client for the specified provider."""
+    if provider == "openrouter":
+        return anthropic.Anthropic(
+            api_key=api_key,
+            base_url="https://openrouter.ai/api/v1"
+        )
+    return anthropic.Anthropic(api_key=api_key)
+
+
+def get_model(provider: str = "anthropic") -> str:
+    """Get the model name for the specified provider."""
+    if provider == "openrouter":
+        return "anthropic/claude-sonnet-4"
+    return "claude-sonnet-4-20250514"
+
+
 def generate_response(
     agent: Agent,
     user_message: str,
     conversation_history: list[dict],
-    api_key: str
+    api_key: str,
+    provider: str = "anthropic"
 ) -> str:
     """Generate a response using the specified agent."""
-    client = anthropic.Anthropic(api_key=api_key)
+    client = get_client(api_key, provider)
+    model = get_model(provider)
 
     # Build messages from conversation history
     messages = []
@@ -388,7 +407,7 @@ def generate_response(
     })
 
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model=model,
         max_tokens=2048,
         system=agent.system_prompt,
         messages=messages

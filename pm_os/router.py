@@ -3,7 +3,7 @@ PM OS Router - Intent classification to route messages to the right agent
 """
 
 import anthropic
-from agents import AGENTS, Agent
+from agents import AGENTS, Agent, get_client, get_model
 
 
 ROUTER_SYSTEM_PROMPT = """You are an intent classifier for a PM (Product Manager) assistant system.
@@ -70,21 +70,23 @@ Examples:
 """
 
 
-def classify_intent(user_message: str, api_key: str) -> str:
+def classify_intent(user_message: str, api_key: str, provider: str = "anthropic") -> str:
     """
     Classify the user's intent and return the appropriate agent name.
 
     Args:
         user_message: The user's input message
-        api_key: Anthropic API key
+        api_key: API key
+        provider: API provider ("anthropic" or "openrouter")
 
     Returns:
         Agent name (lowercase string)
     """
-    client = anthropic.Anthropic(api_key=api_key)
+    client = get_client(api_key, provider)
+    model = get_model(provider)
 
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model=model,
         max_tokens=50,
         system=ROUTER_SYSTEM_PROMPT,
         messages=[
@@ -102,18 +104,19 @@ def classify_intent(user_message: str, api_key: str) -> str:
     return agent_name
 
 
-def route_message(user_message: str, api_key: str) -> tuple[str, Agent]:
+def route_message(user_message: str, api_key: str, provider: str = "anthropic") -> tuple[str, Agent]:
     """
     Route a user message to the appropriate agent.
 
     Args:
         user_message: The user's input message
-        api_key: Anthropic API key
+        api_key: API key
+        provider: API provider ("anthropic" or "openrouter")
 
     Returns:
         Tuple of (agent_name, Agent object)
     """
-    agent_name = classify_intent(user_message, api_key)
+    agent_name = classify_intent(user_message, api_key, provider)
     agent = AGENTS[agent_name]
     return agent_name, agent
 

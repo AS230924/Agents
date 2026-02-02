@@ -14,14 +14,15 @@ def format_agent_header(agent) -> str:
     return f"### {agent.display_name}\n*{agent.description}*\n\n---\n\n"
 
 
-def chat(message: str, history: list, api_key: str) -> tuple[list, str]:
+def chat(message: str, history: list, api_key: str, provider: str) -> tuple[list, str]:
     """
     Process a chat message and return updated history.
 
     Args:
         message: User's input message
         history: Chat history as list of [user, assistant] pairs
-        api_key: Anthropic API key
+        api_key: API key
+        provider: API provider ("Anthropic" or "OpenRouter")
 
     Returns:
         Tuple of (updated history, empty string for input clearing)
@@ -30,12 +31,15 @@ def chat(message: str, history: list, api_key: str) -> tuple[list, str]:
         return history, ""
 
     if not api_key.strip():
-        history.append([message, "Please enter your Anthropic API key in the settings above."])
+        history.append([message, "Please enter your API key in the settings above."])
         return history, ""
+
+    # Convert provider name to internal format
+    provider_key = "openrouter" if provider == "OpenRouter" else "anthropic"
 
     try:
         # Route to appropriate agent
-        agent_name, agent = route_message(message, api_key)
+        agent_name, agent = route_message(message, api_key, provider_key)
 
         # Convert history to conversation format for context
         conversation_history = []
@@ -51,7 +55,7 @@ def chat(message: str, history: list, api_key: str) -> tuple[list, str]:
             conversation_history.append({"role": "assistant", "content": clean_response})
 
         # Generate response
-        response = generate_response(agent, message, conversation_history, api_key)
+        response = generate_response(agent, message, conversation_history, api_key, provider_key)
 
         # Format response with agent header
         formatted_response = format_agent_header(agent) + response
@@ -61,7 +65,7 @@ def chat(message: str, history: list, api_key: str) -> tuple[list, str]:
     except Exception as e:
         error_msg = f"Error: {str(e)}"
         if "api_key" in str(e).lower() or "authentication" in str(e).lower():
-            error_msg = "Invalid API key. Please check your Anthropic API key."
+            error_msg = "Invalid API key. Please check your API key."
         history.append([message, f"**Error:** {error_msg}"])
 
     return history, ""
@@ -92,12 +96,18 @@ with gr.Blocks(title="PM OS - Product Manager Operating System") as app:
     """)
 
     with gr.Row():
+        provider_select = gr.Dropdown(
+            label="Provider",
+            choices=["Anthropic", "OpenRouter"],
+            value="Anthropic",
+            scale=1
+        )
         api_key_input = gr.Textbox(
-            label="Anthropic API Key",
-            placeholder="sk-ant-...",
+            label="API Key",
+            placeholder="sk-ant-... or sk-or-...",
             type="password",
             scale=3,
-            value=os.environ.get("ANTHROPIC_API_KEY", "")
+            value=os.environ.get("ANTHROPIC_API_KEY", "") or os.environ.get("OPENROUTER_API_KEY", "")
         )
 
     chatbot = gr.Chatbot(
@@ -135,13 +145,13 @@ with gr.Blocks(title="PM OS - Product Manager Operating System") as app:
     # Event handlers
     submit_btn.click(
         fn=chat,
-        inputs=[msg_input, chatbot, api_key_input],
+        inputs=[msg_input, chatbot, api_key_input, provider_select],
         outputs=[chatbot, msg_input]
     )
 
     msg_input.submit(
         fn=chat,
-        inputs=[msg_input, chatbot, api_key_input],
+        inputs=[msg_input, chatbot, api_key_input, provider_select],
         outputs=[chatbot, msg_input]
     )
 
