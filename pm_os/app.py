@@ -5,32 +5,24 @@ A multi-agent tool with a web UI to help PMs with their daily work.
 
 import os
 import gradio as gr
+from agents import AGENTS, get_agent
 from router import route_message
-from agents import generate_response, AGENTS
 from memory import create_session, extract_decision_summary, SessionMemory
 
 
-# Global session memory (will be replaced with proper state management)
+# Global session memory
 session_memory = create_session()
 
 
 def format_agent_header(agent) -> str:
     """Format agent header for display."""
-    return f"### {agent.display_name}\n*{agent.description}*\n\n---\n\n"
+    tool_info = f" | {len(agent.tools)} tools" if agent.tools else ""
+    return f"### {agent.display_name}{tool_info}\n*{agent.description}*\n\n---\n\n"
 
 
 def chat(message: str, history: list, api_key: str, provider: str) -> tuple[list, str, str]:
     """
     Process a chat message and return updated history.
-
-    Args:
-        message: User's input message
-        history: Chat history as list of [user, assistant] pairs
-        api_key: API key
-        provider: API provider ("Anthropic" or "OpenRouter")
-
-    Returns:
-        Tuple of (updated history, empty string for input clearing, decision log markdown)
     """
     global session_memory
 
@@ -41,7 +33,6 @@ def chat(message: str, history: list, api_key: str, provider: str) -> tuple[list
         history.append([message, "Please enter your API key in the settings above."])
         return history, "", session_memory.get_decisions_markdown()
 
-    # Convert provider name to internal format
     provider_key = "openrouter" if provider == "OpenRouter" else "anthropic"
 
     try:
@@ -52,20 +43,28 @@ def chat(message: str, history: list, api_key: str, provider: str) -> tuple[list
         conversation_history = []
         for user_msg, assistant_msg in history:
             conversation_history.append({"role": "user", "content": user_msg})
-            # Strip agent header from history if present
             clean_response = assistant_msg
             if assistant_msg.startswith("###"):
-                # Find the end of the header (after the ---\n\n)
                 divider_pos = assistant_msg.find("---\n\n")
                 if divider_pos != -1:
                     clean_response = assistant_msg[divider_pos + 5:]
             conversation_history.append({"role": "assistant", "content": clean_response})
 
-        # Generate response
-        response = generate_response(agent, message, conversation_history, api_key, provider_key)
+        # Run the agent (with tool use support)
+        response, metadata = agent.run(
+            user_message=message,
+            conversation_history=conversation_history,
+            api_key=api_key,
+            provider=provider_key
+        )
 
         # Format response with agent header
         formatted_response = format_agent_header(agent) + response
+
+        # Add tool usage info if tools were used
+        if metadata.get("tools_used"):
+            tool_names = [t["name"] for t in metadata["tools_used"]]
+            formatted_response += f"\n\n---\n*Tools used: {', '.join(tool_names)}*"
 
         history.append([message, formatted_response])
 
@@ -103,7 +102,6 @@ def export_session():
     global session_memory
     if not session_memory.decisions:
         return "No decisions to export yet."
-
     filename = f"pm_os_session_{session_memory.session_id}.json"
     session_memory.save(filename)
     return f"Session exported to `{filename}`"
@@ -116,8 +114,8 @@ with gr.Blocks(title="PM OS - Product Manager Operating System") as app:
     # 🎯 PM OS
     ### Product Manager Operating System
 
-    A multi-agent AI assistant for Product Managers. Just describe what you need help with,
-    and the right agent will be automatically selected.
+    A multi-agent AI assistant for Product Managers with **tool-enhanced agents**.
+    Just describe what you need help with, and the right agent is automatically selected.
     """)
 
     with gr.Row():
@@ -139,12 +137,11 @@ with gr.Blocks(title="PM OS - Product Manager Operating System") as app:
         with gr.TabItem("💬 Chat"):
             chatbot = gr.Chatbot(
                 label="Chat",
-                height=400
+                height=450
             )
 
             with gr.Row():
                 msg_input = gr.Textbox(
-                    label="Your message",
                     placeholder="e.g., 'Should we prioritize AI features or enterprise security?'",
                     scale=4,
                     show_label=False
@@ -154,7 +151,6 @@ with gr.Blocks(title="PM OS - Product Manager Operating System") as app:
             with gr.Row():
                 clear_btn = gr.Button("Clear Chat", variant="secondary")
 
-            # Example prompts
             gr.Markdown("**Try these examples:**")
             gr.Examples(
                 examples=[
@@ -180,20 +176,23 @@ with gr.Blocks(title="PM OS - Product Manager Operating System") as app:
                 export_btn = gr.Button("Export Session", variant="secondary")
                 export_status = gr.Textbox(label="", show_label=False, interactive=False)
 
-        with gr.TabItem("ℹ️ Agents"):
+        with gr.TabItem("🤖 Agents"):
             gr.Markdown("""
-            ## Available Agents
+            ## Enhanced Agents with Tools
 
-            | Agent | Trigger | Output |
-            |-------|---------|--------|
-            | 🔍 **Framer** | Vague problems, symptoms | 5 Whys → Problem Statement |
-            | 📊 **Strategist** | "Should we X or Y?", prioritization | Scoring Matrix → Recommendation |
-            | 🤝 **Aligner** | Meetings, stakeholders | Stakeholder Map → Talking Points |
-            | 🚀 **Executor** | "Ship", "MVP", "cut scope" | Scope Analysis → Checklist |
-            | 📝 **Narrator** | "Summarize", "exec update" | WHAT/WHY/ASK Summary |
-            | 📄 **Doc Engine** | "Write a PRD", "create spec" | Full Document |
+            Each agent has specialized tools for their domain:
+
+            | Agent | Tools | What They Do |
+            |-------|-------|--------------|
+            | 🔍 **Framer** | `log_why`, `generate_problem_statement`, `suggest_next_steps` | Structured 5 Whys analysis |
+            | 📊 **Strategist** | `add_option`, `score_option`, `compare_options`, `analyze_tradeoffs` | Weighted scoring with calculator |
+            | 🤝 **Aligner** | `add_stakeholder`, `define_ask`, `prepare_objection_response`, `create_talking_point` | Stakeholder mapping |
+            | 🚀 **Executor** | `add_feature`, `classify_feature`, `define_mvp`, `add_checklist_item`, `set_launch_criteria` | MVP scoping |
+            | 📝 **Narrator** | `draft_tldr`, `structure_what`, `structure_why`, `structure_ask`, `flag_risk` | Structured exec summary |
+            | 📄 **Doc Engine** | `set_document_metadata`, `define_problem`, `add_goal`, `add_user_story`, `add_requirement`, `define_scope`, `add_timeline_phase` | Full PRD generation |
 
             The router automatically selects the right agent based on your message.
+            Agents use their tools to produce structured, high-quality outputs.
             """)
 
     # Event handlers
@@ -221,7 +220,7 @@ with gr.Blocks(title="PM OS - Product Manager Operating System") as app:
 
     gr.Markdown("""
     ---
-    *PM OS v1.1 - Built with Claude and Gradio*
+    *PM OS v2.0 - Enhanced with Tool-Using Agents*
     """)
 
 
