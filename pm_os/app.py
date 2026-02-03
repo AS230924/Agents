@@ -8,10 +8,15 @@ import gradio as gr
 from agents import AGENTS, get_agent
 from router import route_message
 from memory import create_session, extract_decision_summary, SessionMemory
+from evaluation import get_evaluation_store, reset_evaluation_store, AGENT_CRITERIA
 
 
 # Global session memory
 session_memory = create_session()
+# Track last agent for rating
+last_agent_name = None
+last_response = None
+last_tools_used = []
 
 
 def format_agent_header(agent) -> str:
@@ -20,18 +25,20 @@ def format_agent_header(agent) -> str:
     return f"### {agent.display_name}{tool_info}\n*{agent.description}*\n\n---\n\n"
 
 
-def chat(message: str, history: list, api_key: str) -> tuple[list, str, str]:
+def chat(message: str, history: list, api_key: str) -> tuple[list, str, str, str]:
     """
     Process a chat message and return updated history.
     """
-    global session_memory
+    global session_memory, last_agent_name, last_response, last_tools_used
+
+    eval_store = get_evaluation_store()
 
     if not message.strip():
-        return history, "", session_memory.get_decisions_markdown()
+        return history, "", session_memory.get_decisions_markdown(), eval_store.get_stats_markdown()
 
     if not api_key.strip():
         history.append([message, "Please enter your OpenRouter API key above."])
-        return history, "", session_memory.get_decisions_markdown()
+        return history, "", session_memory.get_decisions_markdown(), eval_store.get_stats_markdown()
 
     provider_key = "openrouter"
 
@@ -58,13 +65,25 @@ def chat(message: str, history: list, api_key: str) -> tuple[list, str, str]:
             provider=provider_key
         )
 
+        # Track for rating
+        last_agent_name = agent_name
+        last_response = response
+        last_tools_used = [t["name"] for t in metadata.get("tools_used", [])]
+
+        # Add evaluation
+        eval_store.add_evaluation(
+            agent_name=agent_name,
+            user_query=message,
+            response=response,
+            tools_used=last_tools_used
+        )
+
         # Format response with agent header
         formatted_response = format_agent_header(agent) + response
 
         # Add tool usage info if tools were used
         if metadata.get("tools_used"):
-            tool_names = [t["name"] for t in metadata["tools_used"]]
-            formatted_response += f"\n\n---\n*Tools used: {', '.join(tool_names)}*"
+            formatted_response += f"\n\n---\n*Tools used: {', '.join(last_tools_used)}*"
 
         history.append([message, formatted_response])
 
@@ -87,14 +106,33 @@ def chat(message: str, history: list, api_key: str) -> tuple[list, str, str]:
             error_msg = "Invalid API key. Please check your API key."
         history.append([message, f"**Error:** {error_msg}"])
 
-    return history, "", session_memory.get_decisions_markdown()
+    return history, "", session_memory.get_decisions_markdown(), eval_store.get_stats_markdown()
+
+
+def rate_thumbs_up() -> tuple[str, str]:
+    """Rate the last response positively."""
+    eval_store = get_evaluation_store()
+    eval_store.rate_last("up")
+    return "✅ Thanks for the feedback!", eval_store.get_stats_markdown()
+
+
+def rate_thumbs_down() -> tuple[str, str]:
+    """Rate the last response negatively."""
+    eval_store = get_evaluation_store()
+    eval_store.rate_last("down")
+    return "📝 Thanks - we'll improve!", eval_store.get_stats_markdown()
 
 
 def clear_chat():
     """Clear the chat history and reset session."""
-    global session_memory
+    global session_memory, last_agent_name, last_response, last_tools_used
     session_memory = create_session()
-    return [], "", session_memory.get_decisions_markdown()
+    reset_evaluation_store()
+    last_agent_name = None
+    last_response = None
+    last_tools_used = []
+    eval_store = get_evaluation_store()
+    return [], "", session_memory.get_decisions_markdown(), eval_store.get_stats_markdown(), ""
 
 
 def export_session():
@@ -131,7 +169,7 @@ with gr.Blocks(title="PM OS - Product Manager Operating System") as app:
         with gr.TabItem("💬 Chat"):
             chatbot = gr.Chatbot(
                 label="Chat",
-                height=450
+                height=400
             )
 
             with gr.Row():
@@ -143,7 +181,10 @@ with gr.Blocks(title="PM OS - Product Manager Operating System") as app:
                 submit_btn = gr.Button("Send", variant="primary", scale=1)
 
             with gr.Row():
-                clear_btn = gr.Button("Clear Chat", variant="secondary")
+                thumbs_up_btn = gr.Button("👍 Helpful", variant="secondary", scale=1)
+                thumbs_down_btn = gr.Button("👎 Not Helpful", variant="secondary", scale=1)
+                feedback_status = gr.Textbox(label="", show_label=False, interactive=False, scale=2)
+                clear_btn = gr.Button("Clear Chat", variant="secondary", scale=1)
 
             gr.Markdown("**Try these examples:**")
             gr.Examples(
@@ -170,6 +211,25 @@ with gr.Blocks(title="PM OS - Product Manager Operating System") as app:
                 export_btn = gr.Button("Export Session", variant="secondary")
                 export_status = gr.Textbox(label="", show_label=False, interactive=False)
 
+        with gr.TabItem("📊 Analytics"):
+            gr.Markdown("""
+            *Quality metrics and user feedback are tracked here.
+            Rate responses with 👍/👎 to improve the analytics.*
+            """)
+            analytics_display = gr.Markdown(
+                value="*No evaluations yet. Start chatting and rate responses to build your analytics!*"
+            )
+            gr.Markdown("""
+            ---
+            ### Quality Scoring Criteria
+
+            Each response is automatically scored on:
+            - **Completeness** (1-5): Does it cover all expected sections?
+            - **Actionability** (1-5): Are the outputs actionable?
+            - **Structure** (1-5): Is it well-formatted with markdown?
+            - **Relevance** (1-5): Does it address the query with agent-specific indicators?
+            """)
+
         with gr.TabItem("🤖 Agents"):
             gr.Markdown("""
             ## Enhanced Agents with Tools
@@ -193,18 +253,28 @@ with gr.Blocks(title="PM OS - Product Manager Operating System") as app:
     submit_btn.click(
         fn=chat,
         inputs=[msg_input, chatbot, api_key_input],
-        outputs=[chatbot, msg_input, decision_log]
+        outputs=[chatbot, msg_input, decision_log, analytics_display]
     )
 
     msg_input.submit(
         fn=chat,
         inputs=[msg_input, chatbot, api_key_input],
-        outputs=[chatbot, msg_input, decision_log]
+        outputs=[chatbot, msg_input, decision_log, analytics_display]
+    )
+
+    thumbs_up_btn.click(
+        fn=rate_thumbs_up,
+        outputs=[feedback_status, analytics_display]
+    )
+
+    thumbs_down_btn.click(
+        fn=rate_thumbs_down,
+        outputs=[feedback_status, analytics_display]
     )
 
     clear_btn.click(
         fn=clear_chat,
-        outputs=[chatbot, msg_input, decision_log]
+        outputs=[chatbot, msg_input, decision_log, analytics_display, feedback_status]
     )
 
     export_btn.click(
@@ -214,7 +284,7 @@ with gr.Blocks(title="PM OS - Product Manager Operating System") as app:
 
     gr.Markdown("""
     ---
-    *PM OS v2.0 - Enhanced with Tool-Using Agents*
+    *PM OS v2.1 - With Quality Evaluation*
     """)
 
 
