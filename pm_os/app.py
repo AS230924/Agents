@@ -20,7 +20,7 @@ def format_agent_header(agent) -> str:
     return f"### {agent.display_name}{tool_info}\n*{agent.description}*\n\n---\n\n"
 
 
-def chat(message: str, history: list, api_key: str, provider: str) -> tuple[list, str, str]:
+def chat(message: str, history: list, api_key: str) -> tuple[list, str, str]:
     """
     Process a chat message and return updated history.
     """
@@ -30,10 +30,10 @@ def chat(message: str, history: list, api_key: str, provider: str) -> tuple[list
         return history, "", session_memory.get_decisions_markdown()
 
     if not api_key.strip():
-        history.append([message, "Please enter your API key in the settings above."])
+        history.append([message, "Please enter your OpenRouter API key above."])
         return history, "", session_memory.get_decisions_markdown()
 
-    provider_key = "anthropic" if provider == "Anthropic" else "openrouter"
+    provider_key = "openrouter"
 
     try:
         # Route to appropriate agent
@@ -119,18 +119,12 @@ with gr.Blocks(title="PM OS - Product Manager Operating System") as app:
     """)
 
     with gr.Row():
-        provider_select = gr.Dropdown(
-            label="Provider",
-            choices=["OpenRouter", "Anthropic"],
-            value="OpenRouter",
-            scale=1
-        )
         api_key_input = gr.Textbox(
-            label="API Key",
-            placeholder="sk-or-... (OpenRouter) or sk-ant-... (Anthropic)",
+            label="OpenRouter API Key",
+            placeholder="sk-or-...",
             type="password",
-            scale=3,
-            value=os.environ.get("OPENROUTER_API_KEY", "") or os.environ.get("ANTHROPIC_API_KEY", "")
+            scale=4,
+            value=os.environ.get("OPENROUTER_API_KEY", "")
         )
 
     with gr.Tabs():
@@ -198,13 +192,13 @@ with gr.Blocks(title="PM OS - Product Manager Operating System") as app:
     # Event handlers
     submit_btn.click(
         fn=chat,
-        inputs=[msg_input, chatbot, api_key_input, provider_select],
+        inputs=[msg_input, chatbot, api_key_input],
         outputs=[chatbot, msg_input, decision_log]
     )
 
     msg_input.submit(
         fn=chat,
-        inputs=[msg_input, chatbot, api_key_input, provider_select],
+        inputs=[msg_input, chatbot, api_key_input],
         outputs=[chatbot, msg_input, decision_log]
     )
 
