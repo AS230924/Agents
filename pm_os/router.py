@@ -6,21 +6,23 @@ import anthropic
 from agents import AGENTS, BaseAgent
 
 
-def get_client(api_key: str, provider: str = "anthropic"):
+def get_client(api_key: str, provider: str = "openrouter"):
     """Create an API client for the specified provider."""
-    if provider == "openrouter":
-        return anthropic.Anthropic(
-            api_key=api_key,
-            base_url="https://openrouter.ai/api/v1"
-        )
-    return anthropic.Anthropic(api_key=api_key)
+    if provider == "anthropic":
+        return anthropic.Anthropic(api_key=api_key)
+    # Default to OpenRouter
+    return anthropic.Anthropic(
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1"
+    )
 
 
-def get_model(provider: str = "anthropic") -> str:
+def get_model(provider: str = "openrouter") -> str:
     """Get the model name for the specified provider."""
-    if provider == "openrouter":
-        return "anthropic/claude-sonnet-4"
-    return "claude-sonnet-4-20250514"
+    if provider == "anthropic":
+        return "claude-sonnet-4-20250514"
+    # Default to OpenRouter
+    return "anthropic/claude-sonnet-4"
 
 
 ROUTER_SYSTEM_PROMPT = """You are an intent classifier for a PM (Product Manager) assistant system.

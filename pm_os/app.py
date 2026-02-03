@@ -33,7 +33,7 @@ def chat(message: str, history: list, api_key: str, provider: str) -> tuple[list
         history.append([message, "Please enter your API key in the settings above."])
         return history, "", session_memory.get_decisions_markdown()
 
-    provider_key = "openrouter" if provider == "OpenRouter" else "anthropic"
+    provider_key = "anthropic" if provider == "Anthropic" else "openrouter"
 
     try:
         # Route to appropriate agent
@@ -121,16 +121,16 @@ with gr.Blocks(title="PM OS - Product Manager Operating System") as app:
     with gr.Row():
         provider_select = gr.Dropdown(
             label="Provider",
-            choices=["Anthropic", "OpenRouter"],
-            value="Anthropic",
+            choices=["OpenRouter", "Anthropic"],
+            value="OpenRouter",
             scale=1
         )
         api_key_input = gr.Textbox(
             label="API Key",
-            placeholder="sk-ant-... or sk-or-...",
+            placeholder="sk-or-... (OpenRouter) or sk-ant-... (Anthropic)",
             type="password",
             scale=3,
-            value=os.environ.get("ANTHROPIC_API_KEY", "") or os.environ.get("OPENROUTER_API_KEY", "")
+            value=os.environ.get("OPENROUTER_API_KEY", "") or os.environ.get("ANTHROPIC_API_KEY", "")
         )
 
     with gr.Tabs():

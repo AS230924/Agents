@@ -147,17 +147,19 @@ class BaseAgent(ABC):
         return "Max iterations reached", metadata
 
     def _get_client(self, api_key: str, provider: str):
-        if provider == "openrouter":
-            return anthropic.Anthropic(
-                api_key=api_key,
-                base_url="https://openrouter.ai/api/v1"
-            )
-        return anthropic.Anthropic(api_key=api_key)
+        if provider == "anthropic":
+            return anthropic.Anthropic(api_key=api_key)
+        # Default to OpenRouter
+        return anthropic.Anthropic(
+            api_key=api_key,
+            base_url="https://openrouter.ai/api/v1"
+        )
 
     def _get_model(self, provider: str) -> str:
-        if provider == "openrouter":
-            return "anthropic/claude-sonnet-4"
-        return "claude-sonnet-4-20250514"
+        if provider == "anthropic":
+            return "claude-sonnet-4-20250514"
+        # Default to OpenRouter
+        return "anthropic/claude-sonnet-4"
 
 
 # Shared utility functions
