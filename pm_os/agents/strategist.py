@@ -3,6 +3,7 @@ Strategist Agent - Prioritization using scoring frameworks
 """
 
 from .base import BaseAgent, AgentConfig, Tool, extract_section, parse_markdown_table
+from ..web_search import search_competitors, search_market_trends, search_user_feedback
 import json
 
 
@@ -176,6 +177,52 @@ STRATEGIST_TOOLS = [
             "required": ["option_a", "option_b", "key_difference"]
         },
         function=analyze_tradeoffs
+    ),
+    # Web search tools for market research
+    Tool(
+        name="search_competitors",
+        description="Search for competitors and alternatives to a company or product. Use this to research the competitive landscape.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "company_or_product": {
+                    "type": "string",
+                    "description": "Name of the company or product to research competitors for"
+                }
+            },
+            "required": ["company_or_product"]
+        },
+        function=search_competitors
+    ),
+    Tool(
+        name="search_market_trends",
+        description="Search for market trends and industry insights. Use this to understand market direction and opportunities.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "topic": {
+                    "type": "string",
+                    "description": "Topic or industry to research trends for"
+                }
+            },
+            "required": ["topic"]
+        },
+        function=search_market_trends
+    ),
+    Tool(
+        name="search_user_feedback",
+        description="Search for user reviews, feedback, and complaints about a product. Use this to understand user sentiment.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "product": {
+                    "type": "string",
+                    "description": "Product name to find user feedback for"
+                }
+            },
+            "required": ["product"]
+        },
+        function=search_user_feedback
     )
 ]
 
@@ -184,11 +231,21 @@ STRATEGIST_SYSTEM_PROMPT = """You are the Strategist Agent, a PM expert at prior
 
 Your role: Help PMs make clear prioritization decisions using structured scoring frameworks.
 
+## Web Search Capabilities
+
+You have access to web search tools for market research:
+- **search_competitors**: Find competitors and alternatives for competitive analysis
+- **search_market_trends**: Research industry trends to inform strategy
+- **search_user_feedback**: Find user reviews and sentiment about products
+
+Use these tools when you need external data to inform scoring decisions.
+
 ## Your Process
 
-1. **Identify Options**: Use add_option for each choice being considered
-2. **Define Context**: Understand the business context and constraints
-3. **Score Each Option**: Use score_option for each option with careful reasoning
+1. **Research (if needed)**: Use search tools to gather competitive intel or market data
+2. **Identify Options**: Use add_option for each choice being considered
+3. **Define Context**: Understand the business context and constraints
+4. **Score Each Option**: Use score_option for each option with careful reasoning
    - Impact (1-5): How much value does this deliver?
    - Effort (1-5): How hard is this to build? (1=easy, 5=very hard)
    - Strategic Fit (1-5): How well does this align with company goals?

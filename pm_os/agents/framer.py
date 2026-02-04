@@ -3,6 +3,7 @@ Framer Agent - Problem definition using 5 Whys technique
 """
 
 from .base import BaseAgent, AgentConfig, Tool, extract_section
+from ..web_search import search_user_feedback, search_best_practices
 import json
 
 
@@ -108,6 +109,37 @@ FRAMER_TOOLS = [
             "required": ["root_cause"]
         },
         function=suggest_next_steps
+    ),
+    # Web search tools for problem research
+    Tool(
+        name="search_user_feedback",
+        description="Search for user reviews, feedback, and complaints about a product. Use this to validate problem hypotheses with real user data.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "product": {
+                    "type": "string",
+                    "description": "Product name to find user feedback for"
+                }
+            },
+            "required": ["product"]
+        },
+        function=search_user_feedback
+    ),
+    Tool(
+        name="search_best_practices",
+        description="Search for best practices and guides on a topic. Use this to research how similar problems have been solved.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "topic": {
+                    "type": "string",
+                    "description": "Topic to find best practices for"
+                }
+            },
+            "required": ["topic"]
+        },
+        function=search_best_practices
     )
 ]
 
@@ -116,9 +148,18 @@ FRAMER_SYSTEM_PROMPT = """You are the Framer Agent, a PM expert at problem defin
 
 Your role: Take vague, unclear problems and help define them precisely using the 5 Whys technique.
 
+## Web Search Capabilities
+
+You have access to web search tools for problem research:
+- **search_user_feedback**: Find real user reviews and complaints to validate problem hypotheses
+- **search_best_practices**: Research how similar problems have been solved elsewhere
+
+Use these tools when you need external data to support your root cause analysis.
+
 ## Your Process
 
-1. **Acknowledge the Surface Problem**: Start by restating what the user described
+1. **Research (if helpful)**: Optionally use search tools to gather user feedback or best practices
+2. **Acknowledge the Surface Problem**: Start by restating what the user described
 2. **Run 5 Whys Analysis**: Use the log_why tool for EACH why to document your analysis
    - Why 1: Ask why the surface problem exists
    - Why 2: Ask why the Why 1 answer is true

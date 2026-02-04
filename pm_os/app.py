@@ -9,6 +9,7 @@ from agents import AGENTS, get_agent
 from router import route_message
 from memory import create_session, extract_decision_summary, SessionMemory
 from evaluation import get_evaluation_store, reset_evaluation_store, AGENT_CRITERIA
+from web_search import set_serpapi_key
 
 
 # Global session memory
@@ -17,6 +18,13 @@ session_memory = create_session()
 last_agent_name = None
 last_response = None
 last_tools_used = []
+
+
+def update_serpapi_key(key: str):
+    """Update SerpAPI key when user enters it."""
+    if key and key.strip():
+        set_serpapi_key(key.strip())
+    return key
 
 
 def format_agent_header(agent) -> str:
@@ -161,8 +169,15 @@ with gr.Blocks(title="PM OS - Product Manager Operating System") as app:
             label="OpenRouter API Key",
             placeholder="sk-or-...",
             type="password",
-            scale=4,
+            scale=3,
             value=os.environ.get("OPENROUTER_API_KEY", "")
+        )
+        serpapi_key_input = gr.Textbox(
+            label="SerpAPI Key (optional, for web search)",
+            placeholder="Your SerpAPI key...",
+            type="password",
+            scale=2,
+            value=os.environ.get("SERPAPI_KEY", "")
         )
 
     with gr.Tabs():
@@ -238,18 +253,26 @@ with gr.Blocks(title="PM OS - Product Manager Operating System") as app:
 
             | Agent | Tools | What They Do |
             |-------|-------|--------------|
-            | 🔍 **Framer** | `log_why`, `generate_problem_statement`, `suggest_next_steps` | Structured 5 Whys analysis |
-            | 📊 **Strategist** | `add_option`, `score_option`, `compare_options`, `analyze_tradeoffs` | Weighted scoring with calculator |
+            | 🔍 **Framer** | `log_why`, `generate_problem_statement`, `suggest_next_steps`, 🔎 `search_user_feedback`, `search_best_practices` | Structured 5 Whys analysis + web research |
+            | 📊 **Strategist** | `add_option`, `score_option`, `compare_options`, `analyze_tradeoffs`, 🔎 `search_competitors`, `search_market_trends`, `search_user_feedback` | Weighted scoring + market research |
             | 🤝 **Aligner** | `add_stakeholder`, `define_ask`, `prepare_objection_response`, `create_talking_point` | Stakeholder mapping |
             | 🚀 **Executor** | `add_feature`, `classify_feature`, `define_mvp`, `add_checklist_item`, `set_launch_criteria` | MVP scoping |
             | 📝 **Narrator** | `draft_tldr`, `structure_what`, `structure_why`, `structure_ask`, `flag_risk` | Structured exec summary |
             | 📄 **Doc Engine** | `set_document_metadata`, `define_problem`, `add_goal`, `add_user_story`, `add_requirement`, `define_scope`, `add_timeline_phase` | Full PRD generation |
+
+            🔎 = Web search tools (requires SerpAPI key)
 
             The router automatically selects the right agent based on your message.
             Agents use their tools to produce structured, high-quality outputs.
             """)
 
     # Event handlers
+    serpapi_key_input.change(
+        fn=update_serpapi_key,
+        inputs=[serpapi_key_input],
+        outputs=[serpapi_key_input]
+    )
+
     submit_btn.click(
         fn=chat,
         inputs=[msg_input, chatbot, api_key_input],
@@ -284,7 +307,7 @@ with gr.Blocks(title="PM OS - Product Manager Operating System") as app:
 
     gr.Markdown("""
     ---
-    *PM OS v2.1 - With Quality Evaluation*
+    *PM OS v2.2 - With Web Search (SerpAPI)*
     """)
 
 
