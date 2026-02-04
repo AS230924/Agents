@@ -10,7 +10,12 @@ from router import route_message
 from memory import create_session, extract_decision_summary, SessionMemory
 from evaluation import get_evaluation_store, reset_evaluation_store, AGENT_CRITERIA
 from web_search import set_serpapi_key
-from notion import set_notion_config, export_all_decisions, test_connection
+from sheets_export import (
+    generate_decisions_csv,
+    generate_all_outputs_csv,
+    set_sheet_id,
+    get_sheet_url
+)
 
 
 # Page config
@@ -168,28 +173,17 @@ with st.sidebar:
 
     st.divider()
 
-    # Notion Integration
-    st.subheader("📝 Notion Integration")
-    notion_token = st.text_input(
-        "Notion Token",
-        type="password",
-        value=os.environ.get("NOTION_TOKEN", ""),
-        help="Get from notion.so/my-integrations"
+    # Google Sheets Integration
+    st.subheader("📊 Google Sheets")
+    sheet_id = st.text_input(
+        "Sheet ID (optional)",
+        value=os.environ.get("GOOGLE_SHEET_ID", ""),
+        help="From URL: docs.google.com/spreadsheets/d/[SHEET_ID]/edit"
     )
 
-    notion_db_id = st.text_input(
-        "Decision Database ID",
-        value=os.environ.get("NOTION_DB_ID", ""),
-        help="Database ID from Notion URL"
-    )
-
-    if notion_token and notion_db_id:
-        set_notion_config(notion_token, notion_db_id)
-        if st.button("🔗 Test Notion Connection", use_container_width=True):
-            if test_connection():
-                st.success("Connected to Notion!")
-            else:
-                st.error("Connection failed - check token")
+    if sheet_id:
+        set_sheet_id(sheet_id)
+        st.markdown(f"[Open Sheet]({get_sheet_url()})")
 
     st.divider()
 
@@ -259,29 +253,47 @@ with tab_decisions:
     Use this as a record of key outcomes from your PM OS session.*
     """)
 
-    # Export to Notion button
-    col1, col2 = st.columns([1, 3])
+    # Export buttons
+    col1, col2, col3 = st.columns([1, 1, 2])
     with col1:
-        if st.button("📤 Export to Notion", use_container_width=True):
-            if not notion_token or not notion_db_id:
-                st.error("Configure Notion in sidebar first")
-            elif not st.session_state.session_memory.decisions:
-                st.warning("No decisions to export")
-            else:
-                with st.spinner("Exporting to Notion..."):
-                    decisions_data = [
-                        {
-                            "agent_name": d.agent_name,
-                            "agent_emoji": d.agent_emoji,
-                            "user_query": d.user_query,
-                            "decision_summary": d.decision_summary,
-                            "timestamp": d.timestamp  # Already ISO string
-                        }
-                        for d in st.session_state.session_memory.decisions
-                    ]
-                    results = export_all_decisions(decisions_data)
-                    success = sum(1 for r in results if r.get("success"))
-                    st.success(f"Exported {success}/{len(results)} decisions to Notion!")
+        if st.session_state.session_memory.decisions:
+            decisions_data = [
+                {
+                    "agent_name": d.agent_name,
+                    "agent_emoji": d.agent_emoji,
+                    "user_query": d.user_query,
+                    "decision_summary": d.decision_summary,
+                    "timestamp": d.timestamp
+                }
+                for d in st.session_state.session_memory.decisions
+            ]
+            csv_data = generate_decisions_csv(decisions_data)
+            st.download_button(
+                "📥 Download CSV",
+                csv_data,
+                file_name="pm_os_decisions.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+    with col2:
+        if st.session_state.session_memory.conversation:
+            all_outputs = [
+                {
+                    "timestamp": t.timestamp,
+                    "agent_name": t.agent_name,
+                    "user_message": t.user_message,
+                    "agent_response": t.agent_response
+                }
+                for t in st.session_state.session_memory.conversation
+            ]
+            all_csv = generate_all_outputs_csv(all_outputs)
+            st.download_button(
+                "📥 All Outputs CSV",
+                all_csv,
+                file_name="pm_os_all_outputs.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
 
     st.divider()
     decisions_md = st.session_state.session_memory.get_decisions_markdown()
@@ -344,4 +356,4 @@ with tab_agents:
 
 # Footer
 st.divider()
-st.caption("PM OS v2.3 - With Notion Integration | Built with Streamlit")
+st.caption("PM OS v2.4 - With Google Sheets Export | Built with Streamlit")
