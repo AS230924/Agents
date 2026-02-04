@@ -1,0 +1,229 @@
+"""
+PM OS Notion Integration - Export decisions and PRDs to Notion
+"""
+
+import json
+import urllib.request
+import urllib.parse
+from typing import Optional
+from dataclasses import dataclass
+from datetime import datetime
+
+
+# Global configuration
+_notion_token: Optional[str] = None
+_decision_db_id: Optional[str] = None
+
+NOTION_API_VERSION = "2022-06-28"
+NOTION_BASE_URL = "https://api.notion.com/v1"
+
+
+def set_notion_config(token: str, decision_db_id: str = None):
+    """Set Notion API configuration."""
+    global _notion_token, _decision_db_id
+    _notion_token = token
+    if decision_db_id:
+        _decision_db_id = decision_db_id
+
+
+def get_notion_token() -> Optional[str]:
+    """Get Notion token."""
+    return _notion_token
+
+
+def get_decision_db_id() -> Optional[str]:
+    """Get Decision database ID."""
+    return _decision_db_id
+
+
+def _make_request(endpoint: str, method: str = "GET", data: dict = None) -> dict:
+    """Make a request to Notion API."""
+    token = get_notion_token()
+    if not token:
+        raise ValueError("Notion token not configured")
+
+    url = f"{NOTION_BASE_URL}{endpoint}"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "Notion-Version": NOTION_API_VERSION
+    }
+
+    request = urllib.request.Request(url, headers=headers, method=method)
+
+    if data:
+        request.data = json.dumps(data).encode("utf-8")
+
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8")
+        raise Exception(f"Notion API error ({e.code}): {error_body}")
+
+
+def create_decision_page(
+    decision_id: str,
+    summary: str,
+    rationale: str,
+    revisit_if: str = "",
+    status: str = "In progress",
+    date: datetime = None
+) -> dict:
+    """
+    Create a new decision entry in the Notion database.
+
+    Args:
+        decision_id: Unique identifier for the decision
+        summary: Brief summary of the decision
+        rationale: Why this decision was made
+        revisit_if: Conditions that would trigger revisiting
+        status: Current status (In progress, Done, etc.)
+        date: Date of decision (defaults to now)
+
+    Returns:
+        Response from Notion API
+    """
+    db_id = get_decision_db_id()
+    if not db_id:
+        raise ValueError("Decision database ID not configured")
+
+    if date is None:
+        date = datetime.now()
+
+    # Build the page properties matching the database schema
+    properties = {
+        "Decision ID": {
+            "title": [
+                {
+                    "text": {
+                        "content": decision_id
+                    }
+                }
+            ]
+        },
+        "Date": {
+            "date": {
+                "start": date.strftime("%Y-%m-%d")
+            }
+        },
+        "Summary": {
+            "rich_text": [
+                {
+                    "text": {
+                        "content": summary[:2000]  # Notion limit
+                    }
+                }
+            ]
+        },
+        "Rationale": {
+            "rich_text": [
+                {
+                    "text": {
+                        "content": rationale[:2000]
+                    }
+                }
+            ]
+        },
+        "Revisit If": {
+            "rich_text": [
+                {
+                    "text": {
+                        "content": revisit_if[:2000] if revisit_if else ""
+                    }
+                }
+            ]
+        },
+        "Status": {
+            "status": {
+                "name": status
+            }
+        }
+    }
+
+    data = {
+        "parent": {"database_id": db_id},
+        "properties": properties
+    }
+
+    return _make_request("/pages", method="POST", data=data)
+
+
+def export_decision(decision: dict) -> dict:
+    """
+    Export a Decision object to Notion.
+
+    Args:
+        decision: Decision dict with keys: agent_name, agent_emoji, user_query, decision_summary, timestamp
+
+    Returns:
+        Response from Notion API
+    """
+    # Generate a decision ID from agent and timestamp
+    agent = decision.get("agent_name", "Unknown")
+    emoji = decision.get("agent_emoji", "📝")
+    timestamp = decision.get("timestamp", datetime.now().isoformat())
+    query = decision.get("user_query", "")
+    summary = decision.get("decision_summary", "")
+
+    # Parse timestamp
+    try:
+        if isinstance(timestamp, str):
+            date = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        else:
+            date = timestamp
+    except:
+        date = datetime.now()
+
+    # Create decision ID
+    decision_id = f"{emoji} {agent}: {query[:50]}"
+
+    return create_decision_page(
+        decision_id=decision_id,
+        summary=summary,
+        rationale=f"Generated by {agent} agent in response to: {query}",
+        revisit_if="Review if context changes significantly",
+        status="Done",
+        date=date
+    )
+
+
+def export_all_decisions(decisions: list) -> list:
+    """
+    Export multiple decisions to Notion.
+
+    Args:
+        decisions: List of decision dicts
+
+    Returns:
+        List of responses from Notion API
+    """
+    results = []
+    for decision in decisions:
+        try:
+            result = export_decision(decision)
+            results.append({"success": True, "result": result})
+        except Exception as e:
+            results.append({"success": False, "error": str(e)})
+    return results
+
+
+def test_connection() -> bool:
+    """Test if Notion connection is working."""
+    try:
+        token = get_notion_token()
+        if not token:
+            return False
+        # Try to get user info
+        _make_request("/users/me")
+        return True
+    except:
+        return False
+
+
+def get_database_info() -> dict:
+    """Get info about the configured decision database."""
+    db_id = get_decision_db_id()
+    if not db_id:
+        raise ValueError("Decision database ID not configured")
+    return _make_request(f"/databases/{db_id}")
