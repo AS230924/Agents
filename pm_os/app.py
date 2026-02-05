@@ -16,6 +16,7 @@ from sheets_export import (
     set_sheet_id,
     get_sheet_url
 )
+import json
 
 
 # Page config
@@ -50,6 +51,43 @@ def format_agent_header(agent) -> str:
     """Format agent header for display."""
     tool_info = f" | {len(agent.tools)} tools" if agent.tools else ""
     return f"### {agent.display_name}{tool_info}\n*{agent.description}*\n\n---\n\n"
+
+
+def extract_search_sources(tools_used: list) -> list[dict]:
+    """Extract search sources from tool metadata."""
+    sources = []
+    search_tools = ["search_competitors", "search_market_trends", "search_user_feedback", "search_best_practices"]
+
+    for tool in tools_used:
+        if tool.get("name") in search_tools:
+            try:
+                output = json.loads(tool.get("output", "{}"))
+                results = output.get("results", [])
+                for r in results:
+                    if r.get("url") and r.get("title"):
+                        sources.append({
+                            "title": r["title"],
+                            "url": r["url"]
+                        })
+            except:
+                pass
+
+    return sources
+
+
+def format_sources_section(sources: list[dict]) -> str:
+    """Format sources as a markdown section."""
+    if not sources:
+        return ""
+
+    lines = ["\n\n---\n**Sources:**"]
+    seen = set()
+    for s in sources[:5]:  # Limit to 5 sources
+        if s["url"] not in seen:
+            lines.append(f"- [{s['title'][:60]}...]({s['url']})" if len(s['title']) > 60 else f"- [{s['title']}]({s['url']})")
+            seen.add(s["url"])
+
+    return "\n".join(lines)
 
 
 def process_message(message: str, api_key: str):
@@ -102,8 +140,13 @@ def process_message(message: str, api_key: str):
         # Format response
         formatted_response = format_agent_header(agent) + response
 
+        # Add sources if search tools were used
+        sources = extract_search_sources(metadata.get("tools_used", []))
+        if sources:
+            formatted_response += format_sources_section(sources)
+
         if metadata.get("tools_used"):
-            formatted_response += f"\n\n---\n*Tools used: {', '.join(st.session_state.last_tools_used)}*"
+            formatted_response += f"\n\n*Tools used: {', '.join(st.session_state.last_tools_used)}*"
 
         st.session_state.messages.append({
             "role": "assistant",
@@ -356,4 +399,4 @@ with tab_agents:
 
 # Footer
 st.divider()
-st.caption("PM OS v2.4 - With Google Sheets Export | Built with Streamlit")
+st.caption("PM OS v2.5 - With Web Search Sources | Built with Streamlit")
