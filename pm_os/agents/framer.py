@@ -3,8 +3,13 @@ Framer Agent - Problem definition using 5 Whys technique
 """
 
 from .base import BaseAgent, AgentConfig, Tool, extract_section
-from ..web_search import search_user_feedback, search_best_practices
 import json
+
+# Import web search functions - handle both package and direct execution
+try:
+    from web_search import search_user_feedback, search_best_practices
+except ImportError:
+    from ..web_search import search_user_feedback, search_best_practices
 
 
 def log_why(why_number: int, question: str, answer: str) -> str:

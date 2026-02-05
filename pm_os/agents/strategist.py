@@ -3,8 +3,13 @@ Strategist Agent - Prioritization using scoring frameworks
 """
 
 from .base import BaseAgent, AgentConfig, Tool, extract_section, parse_markdown_table
-from ..web_search import search_competitors, search_market_trends, search_user_feedback
 import json
+
+# Import web search functions - handle both package and direct execution
+try:
+    from web_search import search_competitors, search_market_trends, search_user_feedback
+except ImportError:
+    from ..web_search import search_competitors, search_market_trends, search_user_feedback
 
 
 def add_option(name: str, description: str) -> str:
