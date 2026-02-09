@@ -3,7 +3,26 @@ PM OS Router - Intent classification to route messages to the right agent
 """
 
 import anthropic
-from agents import AGENTS, Agent, get_client, get_model
+from agents import AGENTS, BaseAgent
+
+
+def get_client(api_key: str, provider: str = "openrouter"):
+    """Create an API client for the specified provider."""
+    if provider == "anthropic":
+        return anthropic.Anthropic(api_key=api_key)
+    # Default to OpenRouter
+    return anthropic.Anthropic(
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1"
+    )
+
+
+def get_model(provider: str = "openrouter") -> str:
+    """Get the model name for the specified provider."""
+    if provider == "anthropic":
+        return "claude-sonnet-4-20250514"
+    # Default to OpenRouter
+    return "anthropic/claude-sonnet-4"
 
 
 ROUTER_SYSTEM_PROMPT = """You are an intent classifier for a PM (Product Manager) assistant system.
@@ -104,7 +123,7 @@ def classify_intent(user_message: str, api_key: str, provider: str = "anthropic"
     return agent_name
 
 
-def route_message(user_message: str, api_key: str, provider: str = "anthropic") -> tuple[str, Agent]:
+def route_message(user_message: str, api_key: str, provider: str = "anthropic") -> tuple[str, BaseAgent]:
     """
     Route a user message to the appropriate agent.
 
@@ -143,4 +162,5 @@ if __name__ == "__main__":
             agent = AGENTS[agent_name]
             print(f"Message: {msg}")
             print(f"Agent: {agent.display_name}")
+            print(f"Tools: {len(agent.tools)}")
             print()
