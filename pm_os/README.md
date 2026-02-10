@@ -18,18 +18,30 @@ PM OS automatically routes your questions to specialized agents, each with their
 
 ## Quick Start
 
+### Option 1: Streamlit Web UI
 ```bash
-# 1. Clone and enter directory
 cd pm_os
-
-# 2. Install dependencies
 pip install -r requirements.txt
-
-# 3. Run the app
 streamlit run app.py
 ```
-
 Open http://localhost:8501 in your browser.
+
+### Option 2: Command Line (No UI)
+```bash
+cd pm_os
+pip install anthropic
+python cli.py
+```
+
+### Option 3: Replit (No Python needed)
+1. Go to [replit.com](https://replit.com) and create a Python repl
+2. Copy contents of `replit_pm_os.py` into `main.py`
+3. Click Run
+
+### Option 4: Google Colab
+1. Upload `PM_OS_Colab.ipynb` to [colab.google.com](https://colab.research.google.com)
+2. Run all cells
+3. Click the ngrok URL
 
 ---
 
@@ -152,6 +164,9 @@ Enter these in the sidebar when running the app.
 ```
 pm_os/
 ├── app.py              # Streamlit UI - main entry point
+├── cli.py              # Command-line interface (no UI)
+├── replit_pm_os.py     # Single-file version for Replit
+├── PM_OS_Colab.ipynb   # Google Colab notebook
 ├── router.py           # Intent classification & agent routing
 ├── memory.py           # Session memory & decision logging
 ├── evaluation.py       # Quality scoring & feedback
@@ -274,18 +289,20 @@ export GOOGLE_SHEET_ID="your-sheet-id"
 
 ## Running on Google Colab
 
+Upload `PM_OS_Colab.ipynb` to Colab and run all cells. The notebook will:
+
+1. Install dependencies (streamlit, anthropic, pyngrok)
+2. Prompt for your OpenRouter API key
+3. Create all PM OS files
+4. Launch the app with a public ngrok URL
+
+Alternatively, use the single-file version:
+
 ```python
-!pip install streamlit anthropic
+# Cell 1: Install
+!pip install anthropic
 
-# Write your API key
-import os
-os.environ["OPENROUTER_API_KEY"] = "sk-or-..."
-
-# Run in background
-!streamlit run pm_os/app.py &>/dev/null &
-
-# After a few seconds, click the URL shown or use localtunnel
-!npx localtunnel --port 8501
+# Cell 2: Paste contents of replit_pm_os.py here and run
 ```
 
 ---
