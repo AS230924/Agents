@@ -60,14 +60,14 @@ class BaseAgent:
         except Exception as e:
             return json.dumps({"error": str(e)})
 
-    def run(self, user_message, api_key, history=None):
+    def run(self, user_message, api_key, model="anthropic/claude-sonnet-4", history=None):
         client = anthropic.Anthropic(api_key=api_key, base_url="https://openrouter.ai/api/v1")
         messages = list(history or []) + [{"role": "user", "content": user_message}]
         tools_api = [t.to_api() for t in self.tools] if self.tools else None
         tools_used = []
 
         for _ in range(10):  # Max iterations
-            kwargs = {"model": "anthropic/claude-sonnet-4", "max_tokens": 4096,
+            kwargs = {"model": model, "max_tokens": 4096,
                      "system": self.system_prompt, "messages": messages}
             if tools_api:
                 kwargs["tools"] = tools_api
@@ -281,7 +281,7 @@ AGENTS = {
     "narrator": NARRATOR, "doc_engine": DOC_ENGINE, "aligner": ALIGNER
 }
 
-def route_message(msg, api_key):
+def route_message(msg, api_key, model="anthropic/claude-sonnet-4"):
     """Route to appropriate agent based on intent."""
     client = anthropic.Anthropic(api_key=api_key, base_url="https://openrouter.ai/api/v1")
 
@@ -294,7 +294,7 @@ def route_message(msg, api_key):
 - doc_engine: PRDs, specs, documentation"""
 
     r = client.messages.create(
-        model="anthropic/claude-sonnet-4",
+        model=model,
         max_tokens=20,
         system=prompt,
         messages=[{"role": "user", "content": msg}]
@@ -308,6 +308,14 @@ def route_message(msg, api_key):
 
 
 # ============== MAIN CLI ==============
+# Available free models on OpenRouter
+FREE_MODELS = [
+    "meta-llama/llama-3.2-3b-instruct:free",
+    "google/gemma-2-9b-it:free",
+    "mistralai/mistral-7b-instruct:free",
+    "qwen/qwen-2-7b-instruct:free",
+]
+
 def main():
     print("\n" + "="*60)
     print("🎯 PM OS - Product Manager Operating System")
@@ -327,7 +335,28 @@ def main():
         print("❌ API key required!")
         return
 
-    print("\n✅ Ready! Ask any PM question.\n")
+    # Model selection
+    print("\n📦 Model options:")
+    print("  1. anthropic/claude-sonnet-4 (paid - best quality)")
+    print("  2. meta-llama/llama-3.2-3b-instruct:free (free)")
+    print("  3. google/gemma-2-9b-it:free (free)")
+    print("  4. Enter custom model name")
+
+    model_choice = input("\nSelect model [1-4, default=2]: ").strip() or "2"
+
+    if model_choice == "1":
+        model = "anthropic/claude-sonnet-4"
+    elif model_choice == "2":
+        model = "meta-llama/llama-3.2-3b-instruct:free"
+    elif model_choice == "3":
+        model = "google/gemma-2-9b-it:free"
+    elif model_choice == "4":
+        model = input("Enter model name: ").strip()
+    else:
+        model = "meta-llama/llama-3.2-3b-instruct:free"
+
+    print(f"\n✅ Using model: {model}")
+    print("✅ Ready! Ask any PM question.\n")
 
     while True:
         try:
@@ -345,11 +374,11 @@ def main():
 
             # Route and run
             print("\n🔄 Routing...")
-            agent_name, agent = route_message(user_input, api_key)
+            agent_name, agent = route_message(user_input, api_key, model)
             print(f"📍 → {agent.emoji} {agent.name}\n")
 
             print("💭 Thinking...\n")
-            response, tools = agent.run(user_input, api_key)
+            response, tools = agent.run(user_input, api_key, model)
 
             print("-"*60)
             print(f"\n{agent.emoji} {agent.name}:\n")
