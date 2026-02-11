@@ -1,0 +1,180 @@
+{
+  "name": "PM OS - Product Manager Operating System",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pm-os",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "pm-os-webhook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://pm-os.app"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $json.model || 'meta-llama/llama-3.2-3b-instruct:free' }}\",\n  \"max_tokens\": 50,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Classify intent. Return ONLY the agent name (one word):\\n- framer: vague problems, root cause, why questions\\n- strategist: prioritization, decisions, trade-offs\\n- aligner: stakeholders, meetings, executives\\n- executor: MVP, shipping, launch, features\\n- narrator: summaries, updates, release notes\\n- doc_engine: PRDs, specs, documentation\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ $json.body.message }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "router-llm",
+      "name": "Router - Classify Intent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [470, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "openrouter-auth",
+          "name": "OpenRouter API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract agent name from router response\nconst routerResponse = $input.first().json;\nconst agentName = routerResponse.choices[0].message.content.trim().toLowerCase();\n\n// Agent configurations\nconst agents = {\n  framer: {\n    name: 'Framer',\n    emoji: '🔍',\n    description: 'Problem definition using 5 Whys',\n    systemPrompt: `You are the Framer Agent, expert at problem definition using the 5 Whys technique.\n\nYour process:\n1. Acknowledge the surface problem\n2. Ask \"Why?\" 5 times, going deeper each time\n3. Identify the root cause\n4. Generate problem statement: \"[User] needs [need] because [insight]\"\n5. Suggest 3-5 next steps\n\nOutput format:\n## Problem Analysis\n**Surface Problem:** [what user described]\n**5 Whys:**\n1. Why? → [answer]\n2. Why? → [answer]\n3. Why? → [answer]\n4. Why? → [answer]\n5. Why? → [ROOT CAUSE]\n**Root Cause:** [clear statement]\n**Problem Statement:** [user] needs [need] because [insight]\n**Next Steps:** [actions]`\n  },\n  strategist: {\n    name: 'Strategist',\n    emoji: '📊',\n    description: 'Prioritization with scoring frameworks',\n    systemPrompt: `You are the Strategist Agent, expert at prioritization.\n\nYour process:\n1. List all options being considered\n2. Score each option (Impact 1-5, Effort 1-5, Confidence 1-5)\n3. Calculate weighted score: (Impact × Confidence) / Effort\n4. Analyze key trade-offs\n5. Make clear recommendation\n\nOutput format:\n## Prioritization Analysis\n**Options:** [list with descriptions]\n**Scoring Matrix:**\n| Option | Impact | Effort | Confidence | Score |\n|--------|--------|--------|------------|-------|\n**Trade-offs:** [key considerations]\n**Recommendation:** [CLEAR CHOICE with reasoning]\n**Next Steps:** [actions]`\n  },\n  aligner: {\n    name: 'Aligner',\n    emoji: '🤝',\n    description: 'Stakeholder alignment',\n    systemPrompt: `You are the Aligner Agent, expert at stakeholder alignment.\n\nYour process:\n1. Map stakeholders (name, role, interest, influence)\n2. Define the ask (what, why, deadline)\n3. Create talking points with data\n4. Prepare objection responses\n\nOutput format:\n## Alignment Strategy\n**Stakeholder Map:**\n| Name | Role | Interest | Influence |\n**The Ask:** [what you need, why, by when]\n**Talking Points:** [key messages]\n**Objection Handling:** [anticipated pushback and responses]`\n  },\n  executor: {\n    name: 'Executor',\n    emoji: '🚀',\n    description: 'MVP scoping and shipping',\n    systemPrompt: `You are the Executor Agent, expert at MVP scoping.\n\nYour process:\n1. List all features under consideration\n2. Classify each: must-have, nice-to-have, or cut\n3. Define MVP scope with rationale\n4. Create launch checklist\n5. Set success metrics\n\nOutput format:\n## MVP Scope\n**Features:**\n| Feature | Classification | Reason |\n**MVP Definition:** [included features]\n**Cut List:** [features cut and why]\n**Launch Checklist:** [items with owners]\n**Success Criteria:** [metrics and targets]`\n  },\n  narrator: {\n    name: 'Narrator',\n    emoji: '📝',\n    description: 'Executive summaries',\n    systemPrompt: `You are the Narrator Agent, expert at executive summaries.\n\nYour process:\n1. Draft TL;DR (1-2 sentences)\n2. Structure What (what's happening)\n3. Structure Why (why it matters)\n4. Structure Ask (what you need)\n5. Add supporting data\n6. Flag risks with mitigations\n\nOutput format:\n## Executive Summary\n**TL;DR:** [1-2 sentences]\n**What:** [what's happening]\n**Why:** [why it matters]\n**Ask:** [what you need]\n**Key Data:** [metrics]\n**Risks:** [risks and mitigations]`\n  },\n  doc_engine: {\n    name: 'Doc Engine',\n    emoji: '📄',\n    description: 'PRD generation',\n    systemPrompt: `You are the Doc Engine Agent, expert at PRDs.\n\nCreate a complete PRD with:\n1. Document metadata (title, author, date)\n2. Problem statement with impact\n3. Goals with success metrics\n4. User stories\n5. Requirements (prioritized)\n6. Scope (in/out)\n7. Timeline phases\n8. Open questions\n\nOutput: A complete, professional PRD document.`\n  }\n};\n\n// Find matching agent or default to framer\nlet selectedAgent = agents.framer;\nfor (const [key, agent] of Object.entries(agents)) {\n  if (agentName.includes(key)) {\n    selectedAgent = agents[key];\n    break;\n  }\n}\n\n// Get original message from webhook\nconst originalMessage = $('Webhook Trigger').first().json.body.message;\nconst model = $('Webhook Trigger').first().json.body.model || 'meta-llama/llama-3.2-3b-instruct:free';\n\nreturn {\n  agent: selectedAgent,\n  agentKey: agentName,\n  userMessage: originalMessage,\n  model: model\n};"
+      },
+      "id": "select-agent",
+      "name": "Select Agent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://pm-os.app"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $json.model }}\",\n  \"max_tokens\": 4096,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": {{ JSON.stringify($json.agent.systemPrompt) }}\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify($json.userMessage) }}\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "agent-llm",
+      "name": "Agent - Generate Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [910, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "openrouter-auth",
+          "name": "OpenRouter API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const agentInfo = $('Select Agent').first().json;\nconst llmResponse = $input.first().json;\n\nconst response = llmResponse.choices[0].message.content;\n\nreturn {\n  success: true,\n  agent: {\n    name: agentInfo.agent.name,\n    emoji: agentInfo.agent.emoji,\n    description: agentInfo.agent.description\n  },\n  response: response,\n  model: agentInfo.model\n};"
+      },
+      "id": "format-response",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1130, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1350, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Router - Classify Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Router - Classify Intent": {
+      "main": [
+        [
+          {
+            "node": "Select Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Agent": {
+      "main": [
+        [
+          {
+            "node": "Agent - Generate Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent - Generate Response": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}
