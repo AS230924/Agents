@@ -18,16 +18,27 @@ def chat(message: str, history: list, session_id: str) -> tuple[str, str]:
 
     result = route(message, session_id)
 
+    ctx = result.get("context", {})
+
     response = f"**Intent:** {result['intent']} ({result['confidence']:.0%} confidence)\n"
     response += f"**Reasoning:** {result['reasoning']}\n"
     response += f"**Sequence:** {' -> '.join(result['sequence'])}\n"
     response += f"**State:** problem={result['problem_state']}, decision={result['decision_state']}\n"
+    response += f"**E-commerce context:** {ctx.get('ecommerce_context', 'general')}\n"
+
+    if ctx.get("metrics"):
+        response += f"**Metrics detected:** {ctx['metrics']}\n"
 
     if result["warning"]:
         response += f"\nWarning: {result['warning']}\n"
 
     if result["rules_applied"]:
-        response += f"\n*Rules applied: {', '.join(result['rules_applied'])}*"
+        response += f"\n*Rules applied: {', '.join(result['rules_applied'])}*\n"
+
+    # Show agent output stubs
+    for ao in result.get("agent_outputs", []):
+        nxt = ao["next_recommended_agent"] or "done"
+        response += f"\n`{ao['agent']}` -> {nxt} (status: {ao['status']})"
 
     return response, session_id
 
