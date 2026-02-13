@@ -60,13 +60,24 @@ def classify(enriched_query: dict) -> dict:
             "reasoning": "Empty query — defaulting to Framer for clarification.",
         }
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    client = anthropic.Anthropic(api_key=api_key)
+    provider = os.environ.get("LLM_PROVIDER", "anthropic").lower()
+
+    if provider == "openrouter":
+        api_key = os.environ.get("OPENROUTER_API_KEY", "")
+        client = anthropic.Anthropic(
+            api_key=api_key,
+            base_url="https://openrouter.ai/api/v1",
+        )
+        model = "anthropic/claude-sonnet-4"
+    else:
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        client = anthropic.Anthropic(api_key=api_key)
+        model = "claude-sonnet-4-20250514"
 
     prompt = CLASSIFIER_PROMPT.format(query=query)
 
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model=model,
         max_tokens=256,
         messages=[{"role": "user", "content": prompt}],
     )
