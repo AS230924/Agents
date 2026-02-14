@@ -101,6 +101,14 @@ def run(query: str, session_id: str) -> dict:
     Full pipeline: classify → enforce → execute agents → update state.
 
     This is the primary entry point for production use.
+
+    If an agent in the sequence returns status="needs_clarification",
+    the pipeline halts and returns the clarifying questions to the caller.
+    The response includes:
+      - "needs_clarification": True
+      - "clarifying_agent": which agent is asking
+      - "clarifying_questions": the questions for the user
+      - "pending_agents": agents that still need to run after clarification
     """
     # 1–3: Route (classify + enforce)
     result = route(query, session_id)
@@ -123,8 +131,28 @@ def run(query: str, session_id: str) -> dict:
 
     result["agent_outputs"] = agent_outputs
 
-    # 5. Update state from agent outputs (use actual agent state updates,
+    # 5. Check if any agent needs clarification
+    clarifying_output = None
+    pending_agents = []
+    for output in agent_outputs:
+        if output.get("status") == "needs_clarification":
+            clarifying_output = output
+        elif output.get("status") == "pending":
+            pending_agents.append(output["agent"])
+
+    if clarifying_output:
+        primary = clarifying_output.get("primary_output", {})
+        result["needs_clarification"] = True
+        result["clarifying_agent"] = clarifying_output["agent"]
+        result["clarifying_questions"] = primary.get("clarifying_questions", [])
+        result["context_used"] = primary.get("context_used", [])
+        result["pending_agents"] = pending_agents
+        # Don't update session state — the agent hasn't completed its work
+        return result
+
+    # 6. Update state from agent outputs (use actual agent state updates,
     #    not the pre-computed ones)
+    result["needs_clarification"] = False
     final_state = {}
     for output in agent_outputs:
         su = output.get("state_updates", {})

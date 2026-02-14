@@ -35,10 +35,26 @@ def chat(message: str, history: list, session_id: str) -> tuple[str, str]:
     if result["rules_applied"]:
         response += f"\n*Rules applied: {', '.join(result['rules_applied'])}*\n"
 
-    # Show agent output stubs
-    for ao in result.get("agent_outputs", []):
-        nxt = ao["next_recommended_agent"] or "done"
-        response += f"\n`{ao['agent']}` -> {nxt} (status: {ao['status']})"
+    # Handle clarification-needed responses
+    if result.get("needs_clarification"):
+        agent = result.get("clarifying_agent", "Unknown")
+        questions = result.get("clarifying_questions", [])
+        context_used = result.get("context_used", [])
+        pending = result.get("pending_agents", [])
+
+        response += f"\n**{agent} needs clarification** (after checking all available context)\n"
+        if context_used:
+            response += f"*Context already checked:* {', '.join(context_used)}\n"
+        response += "\n**Questions:**\n"
+        for q in questions:
+            response += f"- {q}\n"
+        if pending:
+            response += f"\n*Pending agents (will run after clarification):* {', '.join(pending)}\n"
+    else:
+        # Show agent output stubs
+        for ao in result.get("agent_outputs", []):
+            nxt = ao["next_recommended_agent"] or "done"
+            response += f"\n`{ao['agent']}` -> {nxt} (status: {ao['status']})"
 
     return response, session_id
 

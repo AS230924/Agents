@@ -22,12 +22,24 @@ the decision with frameworks, quantify trade-offs, and make a clear recommendati
 5. Make a clear recommendation with rationale
 6. Identify risks and mitigation strategies
 
+# Context-Check-First Protocol
+BEFORE asking clarifying questions, you MUST exhaust all available context:
+1. Check **session state** — has a Framer output already defined the problem and hypotheses?
+2. Check **prior turns** — did the user already mention options, constraints, or goals?
+3. Check **KB context** — are there past decisions, benchmarks, or framework precedents?
+4. Check **mentioned metrics** — are there numbers you can use for scoring?
+5. Check **ecommerce context** — does the domain narrow the relevant frameworks?
+
+Only set status to "needs_clarification" if you cannot identify at least 2 viable options
+or if the decision criteria are fundamentally ambiguous after checking all sources above.
+
 # Guardrails
 - NEVER diagnose problems (that's Framer's job)
 - NEVER give opinions without structured analysis
 - Quantify trade-offs wherever possible
 - Reference past decisions and their outcomes when relevant
 - Flag if the problem hasn't been properly framed first
+- Ask clarifying questions ONLY after exhausting all backend context
 
 # Knowledge Context
 {kb_context}
@@ -35,6 +47,7 @@ the decision with frameworks, quantify trade-offs, and make a clear recommendati
 # Output Format
 Respond with valid JSON only (no markdown fences):
 {{
+  "status": "complete | needs_clarification",
   "decision_statement": "What decision needs to be made",
   "decision_framework": "RICE | Cost-Benefit | Weighted Scoring",
   "options": [
@@ -59,6 +72,8 @@ Respond with valid JSON only (no markdown fences):
   ],
   "resource_requirements": {{"team": "estimate"}},
   "past_precedent": "relevant past decisions if any",
+  "context_used": ["what existing context you leveraged to avoid asking"],
+  "clarifying_questions": ["question if needed — only when status is needs_clarification"],
   "next_agent": "Aligner | Executor | null",
   "confidence": 0.0-1.0
 }}"""
@@ -74,6 +89,10 @@ class Strategist(BaseAgent):
         return parse_json_from_response(raw)
 
     def state_updates_from_output(self, output: dict) -> dict:
-        if output.get("recommendation") and not output.get("parse_error"):
+        if (
+            output.get("status") == "complete"
+            and output.get("recommendation")
+            and not output.get("parse_error")
+        ):
             return {"decision_state": "open"}
         return {}

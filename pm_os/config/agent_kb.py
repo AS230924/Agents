@@ -1,9 +1,10 @@
 """
 Agent Knowledge Base for the E-commerce PM OS Router.
 
-Each agent has a detailed spec: role, inputs, outputs, guardrails, and anti-patterns.
-Used by the intent classifier for richer classification and by agents themselves
-for self-governance.
+Each agent has a detailed spec: role, inputs, outputs, guardrails, anti-patterns,
+and clarification triggers. Used by the intent classifier for richer classification,
+by agents themselves for self-governance, and by the orchestrator to manage the
+context-check-first follow-up loop.
 """
 
 AGENT_KB = {
@@ -35,17 +36,20 @@ AGENT_KB = {
             "urgency": "optional",
         },
         "output_schema": {
+            "status": "complete | needs_clarification",
             "problem_statement": "clear reframed problem",
             "hypotheses": "list of possible root causes",
             "diagnostic_plan": "step-by-step investigation",
             "key_metrics_to_check": "list",
+            "context_used": "list of context sources leveraged",
+            "clarifying_questions": "list (only when status=needs_clarification)",
             "next_best_agent": "Strategist | None",
         },
         "guardrails": [
             "Do NOT jump to solutions",
             "Do NOT create PRDs",
             "Do NOT recommend features prematurely",
-            "Always clarify vague inputs",
+            "Exhaust all backend context before asking clarifying questions",
             "Decompose multi-problem chaos into sub-problems",
         ],
         "anti_patterns": [
@@ -53,6 +57,11 @@ AGENT_KB = {
             "False urgency",
             "Correlation != causation errors",
             "Premature summaries",
+        ],
+        "clarification_triggers": [
+            "No metric, segment, or timeframe in query AND not inferable from session context",
+            "Multiple unrelated problems with no way to decompose from context alone",
+            "Query references internal data (e.g. 'our dashboard') that the system cannot access",
         ],
         "ecommerce_focus_areas": [
             "Checkout funnel",
@@ -91,10 +100,13 @@ AGENT_KB = {
             "problem_context": "optional framed problem",
         },
         "output_schema": {
+            "status": "complete | needs_clarification",
             "decision_framework": "RICE, Cost-Benefit, etc.",
             "option_analysis": "pros/cons per option",
             "recommendation": "clear decision",
             "risks": "key risks",
+            "context_used": "list of context sources leveraged",
+            "clarifying_questions": "list (only when status=needs_clarification)",
             "next_best_agent": "Executor | Aligner | Narrator",
         },
         "guardrails": [
@@ -102,11 +114,18 @@ AGENT_KB = {
             "Avoid opinion-only answers",
             "Quantify trade-offs where possible",
             "Use structured frameworks",
+            "Exhaust all backend context before asking clarifying questions",
         ],
         "anti_patterns": [
             "Narrative without decision",
             "Execution before prioritization",
             "Copying competitors blindly",
+            "HiPPO override (accepting 'CEO wants X' without analysis)",
+        ],
+        "clarification_triggers": [
+            "Fewer than 2 viable options identifiable from query + session context",
+            "Decision criteria fundamentally ambiguous (no goals, no constraints)",
+            "Problem not framed AND cannot be inferred from prior turns",
         ],
     },
     "Executor": {
@@ -136,21 +155,31 @@ AGENT_KB = {
             "feature_context": "feature to ship",
         },
         "output_schema": {
+            "status": "complete | needs_clarification",
             "mvp_scope": "in-scope vs out-of-scope",
             "execution_plan": "step-by-step plan",
             "dependencies": "teams/systems needed",
             "risks": "execution risks",
             "timeline": "phased rollout",
+            "context_used": "list of context sources leveraged",
+            "clarifying_questions": "list (only when status=needs_clarification)",
         },
         "guardrails": [
             "Do NOT define MVP if problem is undefined",
             "Do NOT skip prioritization stage",
             "Flag missing decision context",
+            "Exhaust all backend context before asking clarifying questions",
         ],
         "anti_patterns": [
             "Shipping as a reaction to metrics",
             "Feature factory behavior",
             "Urgency-driven execution without diagnosis",
+            "Missing rollback plan",
+        ],
+        "clarification_triggers": [
+            "No decided direction from Strategist AND cannot infer from prior turns",
+            "Multiple options still open with no clear pick",
+            "Timeline or resource constraints completely unknown and not inferable",
         ],
     },
     "Aligner": {
@@ -177,18 +206,30 @@ AGENT_KB = {
             "conflict_area": "optional",
         },
         "output_schema": {
+            "status": "complete | needs_clarification",
             "stakeholder_map": "motivations & concerns",
             "alignment_strategy": "communication approach",
             "objection_handling": "likely objections + responses",
             "RACI": "optional",
+            "context_used": "list of context sources leveraged",
+            "clarifying_questions": "list (only when status=needs_clarification)",
         },
         "guardrails": [
             "Do NOT align without decision clarity",
             "Avoid people-blaming framing",
             "Surface real constraints vs politics",
+            "Exhaust all backend context before asking clarifying questions",
         ],
         "anti_patterns": [
             "Aligner abuse (treating strategic issues as people issues)",
+            "Alignment as excuse for bad decisions",
+            "Treating execution concerns as stakeholder politics",
+            "Skipping alignment — alignment debt compounds",
+        ],
+        "clarification_triggers": [
+            "Decision being aligned is fundamentally unclear after checking session context",
+            "Cannot identify even the primary stakeholder from context",
+            "No Strategist output exists AND user hasn't specified the decision",
         ],
     },
     "Narrator": {
@@ -215,19 +256,30 @@ AGENT_KB = {
             "communication_goal": "inform | persuade",
         },
         "output_schema": {
+            "status": "complete | needs_clarification",
             "executive_summary": "concise narrative",
             "key_highlights": "bullets",
             "risks": "top risks",
             "next_steps": "clear actions",
+            "context_used": "list of context sources leveraged",
+            "clarifying_questions": "list (only when status=needs_clarification)",
         },
         "guardrails": [
             "Do NOT summarize undefined problems",
             "Do NOT create narrative without analysis",
             "Flag missing context",
+            "Exhaust all backend context before asking clarifying questions",
         ],
         "anti_patterns": [
             "Narrator overreach",
             "Premature storytelling",
+            "Using rhetoric to hide missing analysis",
+            "Board updates without risk acknowledgment",
+        ],
+        "clarification_triggers": [
+            "Target audience completely unknown AND cannot be inferred from context",
+            "No substance to narrate (no prior Framer/Strategist/Executor outputs)",
+            "Communication goal ambiguous (inform vs persuade) with no context clues",
         ],
     },
     "Scout": {
@@ -254,19 +306,30 @@ AGENT_KB = {
             "timeframe": "optional",
         },
         "output_schema": {
+            "status": "complete | needs_clarification",
             "competitive_summary": "key moves",
             "feature_comparison": "table",
             "strategic_implications": "for our product",
-            "recommended_followup_agent": "Strategist",
+            "context_used": "list of context sources leveraged",
+            "clarifying_questions": "list (only when status=needs_clarification)",
+            "recommended_followup_agent": "Strategist | Narrator | None",
         },
         "guardrails": [
             "Do NOT recommend copying blindly",
             "Intel should feed strategy",
             "Contextualize for our business model",
+            "Exhaust all backend context before asking clarifying questions",
         ],
         "anti_patterns": [
             "Feature envy",
             "Reactive product decisions",
+            "Analysis paralysis (monitoring everything instead of focusing)",
+            "Treating all competitor moves as threats",
+        ],
+        "clarification_triggers": [
+            "Cannot identify even ONE relevant competitor from query + context",
+            "Feature area completely undefined AND ecommerce context is 'general'",
+            "User references specific competitor data the system cannot access",
         ],
     },
 }
