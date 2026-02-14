@@ -30,10 +30,13 @@ AGENTS = {
         ],
     },
     "Executor": {
-        "description": "Ships features: MVP scoping, launch checklists, blockers",
+        "description": "Ships features: MVP scoping, launch checklists, blockers, PRDs, user stories",
         "triggers": [
             "ship", "launch", "MVP", "checklist", "blockers", "rollout",
-            "deploy", "production", "go-live", "release", "phased"
+            "deploy", "production", "go-live", "release", "phased",
+            "PRD", "product requirements", "user story", "user stories",
+            "acceptance criteria", "feature spec", "requirements document",
+            "as a user", "story points", "definition of done",
         ],
     },
     "Narrator": {
