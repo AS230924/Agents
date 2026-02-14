@@ -173,4 +173,55 @@ def run(query: str, session_id: str) -> dict:
         if final_state.get("decision_state"):
             result["decision_state"] = final_state["decision_state"]
 
+    # 7. Auto-export documents (PRDs → Google Docs, User Stories → Google Sheets)
+    result["exports"] = _try_export_documents(agent_outputs)
+
     return result
+
+
+def _try_export_documents(agent_outputs: list[dict]) -> list[dict]:
+    """
+    Check agent outputs for exportable document types and export them.
+
+    Looks for Executor outputs with output_type in (prd, user_stories, combined)
+    and exports to Google Docs/Sheets. Failures are logged but don't break the
+    pipeline — the export is best-effort.
+    """
+    exports = []
+
+    for output in agent_outputs:
+        if output.get("agent") != "Executor":
+            continue
+        if output.get("status") != "success":
+            continue
+
+        primary = output.get("primary_output", {})
+        output_type = primary.get("output_type", "execution_plan")
+
+        if output_type not in ("prd", "user_stories", "combined"):
+            continue
+
+        try:
+            from pm_os.export.exporter import export_agent_output
+
+            export_result = export_agent_output(primary)
+            exports.append(export_result)
+
+            if export_result.get("exported"):
+                for doc in export_result.get("documents", []):
+                    doc_type = doc.get("type", "unknown")
+                    url = doc.get("doc_url") or doc.get("sheet_url", "")
+                    log.info("Exported %s: %s", doc_type, url)
+            else:
+                log.warning(
+                    "Export skipped: %s", export_result.get("error", "unknown")
+                )
+        except Exception as e:
+            log.warning("Document export failed (non-fatal): %s", e)
+            exports.append({
+                "exported": False,
+                "documents": [],
+                "error": str(e),
+            })
+
+    return exports

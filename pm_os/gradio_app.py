@@ -56,6 +56,18 @@ def chat(message: str, history: list, session_id: str) -> tuple[str, str]:
             nxt = ao["next_recommended_agent"] or "done"
             response += f"\n`{ao['agent']}` -> {nxt} (status: {ao['status']})"
 
+    # Show exported documents (PRDs, User Stories)
+    for export in result.get("exports", []):
+        if export.get("exported"):
+            for doc in export.get("documents", []):
+                doc_type = doc.get("type", "document")
+                url = doc.get("doc_url") or doc.get("sheet_url", "")
+                title = doc.get("title", "Untitled")
+                if doc_type == "prd":
+                    response += f"\n\n**PRD exported to Google Docs:** [{title}]({url})"
+                elif doc_type == "user_stories":
+                    response += f"\n\n**User Stories exported to Google Sheets:** [{title}]({url})"
+
     return response, session_id
 
 
