@@ -1,5 +1,6 @@
 """
-Context builder — enriches a raw query with session state from the store.
+Context builder — enriches a raw query with session state from the store
+and relevant knowledge from the KB (vector + graph).
 
 Output schema:
 {
@@ -10,11 +11,15 @@ Output schema:
     "context": {
         "ecommerce_context": "conversion | retention | checkout | ...",
         "metrics": {},
-        "prior_turns": [...]
+        "prior_turns": [...],
+        "kb_summary": str,        # LLM-ready knowledge context
+        "kb_vector_hits": [...],   # raw vector results
+        "kb_graph_context": {},    # raw graph traversal results
     }
 }
 """
 
+import logging
 import re
 
 from pm_os.store.state_store import (
@@ -23,6 +28,12 @@ from pm_os.store.state_store import (
     get_session,
     init_db,
 )
+
+log = logging.getLogger(__name__)
+
+# Lazy-loaded KB singletons (initialized on first use)
+_kb_retriever = None
+_kb_loaded = False
 
 # Keyword → ecommerce_context mapping
 _CONTEXT_KEYWORDS = {
@@ -79,6 +90,13 @@ def build_context(query: str, session_id: str) -> dict:
     ecommerce_context = _infer_ecommerce_context(query)
     metrics = _extract_metrics(query)
 
+    # KB retrieval (agent-agnostic at this stage; agent-specific retrieval
+    # happens later once intent is classified — we do a broad Framer-level
+    # retrieval here to enrich the classifier prompt)
+    kb_summary, kb_vector_hits, kb_graph_context = _retrieve_kb(
+        query, ecommerce_context
+    )
+
     return {
         "query": query,
         "session_id": session_id,
@@ -88,6 +106,9 @@ def build_context(query: str, session_id: str) -> dict:
             "ecommerce_context": ecommerce_context,
             "metrics": metrics,
             "prior_turns": prior_turns,
+            "kb_summary": kb_summary,
+            "kb_vector_hits": kb_vector_hits,
+            "kb_graph_context": kb_graph_context,
         },
     }
 
@@ -118,3 +139,47 @@ def _extract_metrics(query: str) -> dict:
         if numbers:
             metrics["mentioned_values"] = numbers
     return metrics
+
+
+def _retrieve_kb(
+    query: str, ecommerce_context: str
+) -> tuple[str, list[dict], dict]:
+    """
+    Retrieve knowledge context from the KB stores.
+    Returns (summary, vector_hits, graph_context).
+    Falls back gracefully if KB is not loaded or dependencies missing.
+    """
+    global _kb_retriever, _kb_loaded
+
+    if not _kb_loaded:
+        try:
+            from pm_os.kb.loader import load_all
+            from pm_os.kb.retriever import KBRetriever
+
+            graph, vector = load_all()
+            _kb_retriever = KBRetriever(graph, vector)
+            _kb_loaded = True
+        except Exception as e:
+            log.warning("KB not available: %s", e)
+            _kb_loaded = True  # don't retry every call
+            return "", [], {}
+
+    if _kb_retriever is None:
+        return "", [], {}
+
+    try:
+        # Use Framer as default agent for broad context retrieval
+        result = _kb_retriever.retrieve(
+            agent_name="Framer",
+            query=query,
+            ecommerce_context=ecommerce_context,
+            n_results=3,
+        )
+        return (
+            result.get("summary", ""),
+            result.get("vector_results", []),
+            result.get("graph_context", {}),
+        )
+    except Exception as e:
+        log.warning("KB retrieval failed: %s", e)
+        return "", [], {}

@@ -1,0 +1,165 @@
+{
+  "benchmarks": [
+    {
+      "id": "bench-cvr-overall",
+      "metric": "Overall Conversion Rate",
+      "category": "conversion",
+      "benchmark_range": "1.5% - 3.5%",
+      "median": 2.5,
+      "top_quartile": 3.8,
+      "source": "Industry Benchmark Report 2024",
+      "notes": "Varies heavily by vertical: fashion 1.5-2.5%, electronics 2-4%, beauty 3-5%"
+    },
+    {
+      "id": "bench-cart-abandon",
+      "metric": "Cart Abandonment Rate",
+      "category": "conversion",
+      "benchmark_range": "65% - 75%",
+      "median": 70,
+      "top_quartile": 60,
+      "source": "Baymard Institute 2024",
+      "notes": "Mobile abandonment 10-15% higher than desktop"
+    },
+    {
+      "id": "bench-aov",
+      "metric": "Average Order Value",
+      "category": "revenue",
+      "benchmark_range": "$50 - $150",
+      "median": 85,
+      "top_quartile": 130,
+      "source": "Industry Benchmark Report 2024",
+      "notes": "Highly category-dependent"
+    },
+    {
+      "id": "bench-cac",
+      "metric": "Customer Acquisition Cost",
+      "category": "acquisition",
+      "benchmark_range": "$15 - $75",
+      "median": 45,
+      "top_quartile": 22,
+      "source": "E-commerce Growth Report 2024",
+      "notes": "Rising YoY. Paid social CAC up 20-30% in past 2 years"
+    },
+    {
+      "id": "bench-repeat-rate",
+      "metric": "Repeat Purchase Rate",
+      "category": "retention",
+      "benchmark_range": "20% - 40%",
+      "median": 27,
+      "top_quartile": 42,
+      "source": "Retention Benchmarks 2024",
+      "notes": "Subscription models see 50%+. One-time purchase verticals 15-25%"
+    },
+    {
+      "id": "bench-return-rate",
+      "metric": "Return Rate",
+      "category": "operational",
+      "benchmark_range": "15% - 30%",
+      "median": 20,
+      "top_quartile": 12,
+      "source": "E-commerce Operations Report 2024",
+      "notes": "Fashion/apparel: 25-35%. Electronics: 10-15%"
+    },
+    {
+      "id": "bench-mobile-share",
+      "metric": "Mobile Traffic Share",
+      "category": "acquisition",
+      "benchmark_range": "60% - 75%",
+      "median": 68,
+      "top_quartile": 74,
+      "source": "Mobile Commerce Report 2024",
+      "notes": "Mobile conversion typically 40-60% of desktop conversion"
+    },
+    {
+      "id": "bench-nps",
+      "metric": "Net Promoter Score",
+      "category": "operational",
+      "benchmark_range": "30 - 60",
+      "median": 40,
+      "top_quartile": 62,
+      "source": "CX Benchmarks 2024",
+      "notes": "E-commerce average lower than SaaS (50+)"
+    }
+  ],
+  "patterns": [
+    {
+      "id": "pattern-checkout-friction",
+      "name": "Checkout Friction Pattern",
+      "description": "Each additional checkout step reduces completion by 10-15%. Guest checkout can improve conversion by 5-10%.",
+      "category": "conversion",
+      "tags": ["checkout", "friction", "guest_checkout"]
+    },
+    {
+      "id": "pattern-search-null",
+      "name": "Null Search Results Pattern",
+      "description": "15-25% of site searches return zero results. Users who get null results are 3x more likely to bounce. Fixing null results typically lifts search conversion 10-20%.",
+      "category": "conversion",
+      "tags": ["search", "discovery", "null_results"]
+    },
+    {
+      "id": "pattern-pdp-bounce",
+      "name": "PDP Bounce Pattern",
+      "description": "High PDP bounce (>70%) often signals: poor product images, missing size/fit info, price shock, or slow load time. Image quality improvements alone can lift conversion 5-10%.",
+      "category": "conversion",
+      "tags": ["pdp", "bounce", "images", "product_page"]
+    },
+    {
+      "id": "pattern-promo-dependency",
+      "name": "Promotional Dependency Pattern",
+      "description": "Over-reliance on promotions erodes margin and trains customers to wait for sales. Brands running promotions >40% of the time see 10-15% lower full-price conversion.",
+      "category": "revenue",
+      "tags": ["pricing", "promotion", "discount", "margin"]
+    },
+    {
+      "id": "pattern-cac-channel-mix",
+      "name": "CAC Channel Mix Shift",
+      "description": "Rising CAC often correlates with over-reliance on paid channels. Shifting 20% of budget from paid to organic/email can reduce blended CAC by 15-25%.",
+      "category": "acquisition",
+      "tags": ["cac", "channels", "paid", "organic"]
+    },
+    {
+      "id": "pattern-mobile-gap",
+      "name": "Mobile Conversion Gap",
+      "description": "Mobile conversion is typically 40-60% of desktop. Primary causes: small touch targets, complex forms, slow load, lack of mobile payment options (Apple Pay, Google Pay).",
+      "category": "conversion",
+      "tags": ["mobile", "responsive", "payment"]
+    },
+    {
+      "id": "pattern-returns-sizing",
+      "name": "Size/Fit Returns Pattern",
+      "description": "In fashion/apparel, 40-60% of returns are size-related. Adding size guides, fit technology, or customer reviews with fit info can reduce returns 10-20%.",
+      "category": "operational",
+      "tags": ["returns", "sizing", "fashion", "fit"]
+    },
+    {
+      "id": "pattern-seasonal-q4",
+      "name": "Q4 Seasonal Surge",
+      "description": "E-commerce sees 30-50% revenue spike in Q4 (Black Friday through December). Conversion rates temporarily lift 0.5-1.0pp. Site performance under load becomes critical.",
+      "category": "revenue",
+      "tags": ["seasonal", "q4", "black_friday", "holiday"]
+    },
+    {
+      "id": "pattern-loyalty-retention",
+      "name": "Loyalty Program Impact",
+      "description": "Points-based loyalty programs increase repeat purchase rate by 10-20% but take 6-12 months to show ROI. Tier-based programs show faster engagement but higher complexity.",
+      "category": "retention",
+      "tags": ["loyalty", "retention", "repeat_purchase"]
+    },
+    {
+      "id": "pattern-personalization-lift",
+      "name": "Personalization Revenue Lift",
+      "description": "Product recommendations drive 10-30% of e-commerce revenue. Personalized search results lift conversion 5-15%. Homepage personalization shows 3-8% lift.",
+      "category": "conversion",
+      "tags": ["personalization", "recommendations", "search"]
+    }
+  ],
+  "seasonal_calendar": [
+    {"event": "Valentine's Day", "month": 2, "categories": ["gifts", "fashion", "beauty"]},
+    {"event": "Mother's Day", "month": 5, "categories": ["gifts", "fashion", "beauty"]},
+    {"event": "Prime Day / Summer Sales", "month": 7, "categories": ["electronics", "home"]},
+    {"event": "Back to School", "month": 8, "categories": ["apparel", "electronics", "school_supplies"]},
+    {"event": "Black Friday / Cyber Monday", "month": 11, "categories": ["all"]},
+    {"event": "Holiday Season", "month": 12, "categories": ["all"]},
+    {"event": "Post-Holiday Returns", "month": 1, "categories": ["all"]}
+  ]
+}

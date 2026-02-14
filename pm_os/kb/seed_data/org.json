@@ -1,0 +1,172 @@
+{
+  "teams": [
+    {
+      "id": "team-product",
+      "name": "Product",
+      "function": "product",
+      "kpis": ["conversion_rate", "feature_velocity", "nps"],
+      "motivations": ["Ship features that move metrics", "Build great user experience", "Data-driven decisions"],
+      "concerns": ["Scope creep", "Technical debt", "Stakeholder misalignment"]
+    },
+    {
+      "id": "team-engineering",
+      "name": "Engineering",
+      "function": "engineering",
+      "kpis": ["deployment_frequency", "incident_rate", "velocity"],
+      "motivations": ["Clean architecture", "Manageable scope", "Clear requirements"],
+      "concerns": ["Unrealistic timelines", "Complexity", "Tech debt accumulation"]
+    },
+    {
+      "id": "team-marketing",
+      "name": "Marketing",
+      "function": "marketing",
+      "kpis": ["cac", "roas", "traffic", "email_open_rate"],
+      "motivations": ["Drive traffic and awareness", "Campaign performance", "Brand consistency"],
+      "concerns": ["Rising ad costs", "Attribution accuracy", "Cannibalization from promos"]
+    },
+    {
+      "id": "team-operations",
+      "name": "Operations",
+      "function": "operations",
+      "kpis": ["fulfillment_time", "return_rate", "shipping_cost_per_order"],
+      "motivations": ["Operational efficiency", "Cost reduction", "SLA compliance"],
+      "concerns": ["Capacity constraints", "Carrier reliability", "Return volume spikes"]
+    },
+    {
+      "id": "team-finance",
+      "name": "Finance",
+      "function": "finance",
+      "kpis": ["gross_margin", "cac_payback", "ltv_cac_ratio", "burn_rate"],
+      "motivations": ["Profitability", "Unit economics", "Predictable spend"],
+      "concerns": ["Unproven ROI", "Margin compression", "Headcount growth without revenue"]
+    },
+    {
+      "id": "team-merchandising",
+      "name": "Merchandising",
+      "function": "merchandising",
+      "kpis": ["sell_through_rate", "inventory_turns", "gross_margin_per_sku"],
+      "motivations": ["Right product assortment", "Healthy inventory levels", "Trend responsiveness"],
+      "concerns": ["Dead stock", "SKU proliferation", "Markdowns eroding margin"]
+    },
+    {
+      "id": "team-data",
+      "name": "Data & Analytics",
+      "function": "data",
+      "kpis": ["data_quality_score", "dashboard_adoption", "experiment_velocity"],
+      "motivations": ["Data accuracy", "Self-serve analytics", "Experiment rigor"],
+      "concerns": ["Data pipeline reliability", "Vanity metrics", "p-hacking in A/B tests"]
+    }
+  ],
+
+  "people": [
+    {
+      "id": "person-cpo",
+      "name": "Sarah Chen",
+      "role": "Chief Product Officer",
+      "team_id": "team-product",
+      "reports_to_id": "person-ceo",
+      "priorities": ["Conversion improvement", "Mobile experience", "Loyalty program"],
+      "communication_style": "data-driven, wants clear metrics and timelines"
+    },
+    {
+      "id": "person-ceo",
+      "name": "James Park",
+      "role": "CEO",
+      "team_id": "team-leadership",
+      "reports_to_id": null,
+      "priorities": ["Revenue growth", "Profitability path", "Market expansion"],
+      "communication_style": "bottom-line focused, wants TL;DR with clear asks"
+    },
+    {
+      "id": "person-vp-eng",
+      "name": "Alex Rivera",
+      "role": "VP Engineering",
+      "team_id": "team-engineering",
+      "reports_to_id": "person-ceo",
+      "priorities": ["Platform stability", "Team velocity", "Technical debt reduction"],
+      "communication_style": "prefers specifics over vision, wants scope clarity"
+    },
+    {
+      "id": "person-head-marketing",
+      "name": "Diana Okafor",
+      "role": "Head of Marketing",
+      "team_id": "team-marketing",
+      "reports_to_id": "person-ceo",
+      "priorities": ["Brand awareness", "Campaign ROI", "Customer acquisition"],
+      "communication_style": "creative, responds to stories and customer impact"
+    },
+    {
+      "id": "person-head-ops",
+      "name": "Mike Thompson",
+      "role": "Head of Operations",
+      "team_id": "team-operations",
+      "reports_to_id": "person-ceo",
+      "priorities": ["Fulfillment speed", "Cost control", "Carrier negotiations"],
+      "communication_style": "process-oriented, wants operational feasibility first"
+    },
+    {
+      "id": "person-cfo",
+      "name": "Lisa Wang",
+      "role": "CFO",
+      "team_id": "team-finance",
+      "reports_to_id": "person-ceo",
+      "priorities": ["Path to profitability", "Unit economics", "Fundraising readiness"],
+      "communication_style": "numbers-first, wants ROI projections and payback periods"
+    },
+    {
+      "id": "person-head-merch",
+      "name": "Raj Patel",
+      "role": "Head of Merchandising",
+      "team_id": "team-merchandising",
+      "reports_to_id": "person-cpo",
+      "priorities": ["Product assortment", "Inventory health", "Trend responsiveness"],
+      "communication_style": "visual thinker, wants to see the product strategy"
+    },
+    {
+      "id": "person-pm-checkout",
+      "name": "Emma Davis",
+      "role": "Senior PM - Checkout",
+      "team_id": "team-product",
+      "reports_to_id": "person-cpo",
+      "priorities": ["Checkout conversion", "Payment options", "Cart recovery"],
+      "communication_style": "detail-oriented, wants user research and funnel data"
+    }
+  ],
+
+  "competitors": [
+    {
+      "id": "comp-asos",
+      "name": "ASOS",
+      "vertical": "Fashion",
+      "strengths": ["Free returns", "Wide assortment", "Strong mobile app"],
+      "recent_moves": ["AI-powered size recommendations", "Same-day delivery in London"]
+    },
+    {
+      "id": "comp-zara",
+      "name": "Zara",
+      "vertical": "Fast Fashion",
+      "strengths": ["Speed to market", "Vertical integration", "Store + online"],
+      "recent_moves": ["RFID inventory tracking", "In-store returns for online orders"]
+    },
+    {
+      "id": "comp-shopify-stores",
+      "name": "Shopify Ecosystem",
+      "vertical": "Platform",
+      "strengths": ["One-click checkout (Shop Pay)", "App ecosystem", "Easy setup"],
+      "recent_moves": ["Shop Pay installments", "AI product descriptions", "Shopify Audiences"]
+    }
+  ],
+
+  "metric_relationships": [
+    {"source": "metric:cac", "target": "metric:ltv_cac_ratio", "type": "affects", "direction": "inverse", "note": "Higher CAC worsens ratio"},
+    {"source": "metric:conversion_rate", "target": "metric:cac", "type": "affects", "direction": "inverse", "note": "Higher conversion reduces effective CAC"},
+    {"source": "metric:cart_abandonment", "target": "metric:conversion_rate", "type": "affects", "direction": "inverse", "note": "Higher abandonment lowers conversion"},
+    {"source": "metric:aov", "target": "metric:gmv", "type": "affects", "direction": "direct", "note": "Higher AOV increases GMV"},
+    {"source": "metric:return_rate", "target": "metric:gross_margin", "type": "affects", "direction": "inverse", "note": "Returns directly eat margin"},
+    {"source": "metric:repeat_purchase_rate", "target": "metric:ltv", "type": "affects", "direction": "direct", "note": "More repeats = higher LTV"},
+    {"source": "metric:mobile_conversion", "target": "metric:conversion_rate", "type": "affects", "direction": "direct", "note": "Mobile is 65% of traffic"},
+    {"source": "metric:nps", "target": "metric:repeat_purchase_rate", "type": "affects", "direction": "direct", "note": "Higher satisfaction drives repeat"},
+    {"source": "metric:null_search_rate", "target": "metric:conversion_rate", "type": "affects", "direction": "inverse", "note": "Failed searches = lost sales"},
+    {"source": "metric:page_load_time", "target": "metric:conversion_rate", "type": "affects", "direction": "inverse", "note": "Every 100ms adds ~1% bounce"}
+  ]
+}
