@@ -80,6 +80,9 @@ def route(query: str, session_id: str) -> dict:
             sequence=sequence,
         )
 
+    # 5. Update session state based on which agents are in the sequence
+    _maybe_advance_state(ctx["session_id"], sequence)
+
     return {
         "query": query,
         "intent": intent,
