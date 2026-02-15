@@ -1,8 +1,12 @@
 """
 Gradio chat UI for the E-commerce PM OS Router.
+
+Supports two sharing modes:
+  - GRADIO_SHARE=1  → generates a temporary *.gradio.live public link
+  - Hugging Face Spaces → deploy as an HF Space for a permanent URL
 """
 
-import uuid
+import os
 
 import gradio as gr
 
@@ -92,7 +96,15 @@ def launch():
 
         msg.submit(respond, [msg, chatbot, session_state], [msg, chatbot, session_state])
 
-    demo.launch()
+    share = os.environ.get("GRADIO_SHARE", "").lower() in ("1", "true", "yes")
+    server_name = os.environ.get("GRADIO_SERVER_NAME", "0.0.0.0")
+    server_port = int(os.environ.get("GRADIO_SERVER_PORT", "7860"))
+
+    demo.launch(
+        share=share,
+        server_name=server_name,
+        server_port=server_port,
+    )
 
 
 if __name__ == "__main__":

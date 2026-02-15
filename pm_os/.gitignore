@@ -5,3 +5,7 @@ __pycache__/
 store/*.db
 kb/*.db
 kb/chroma_data/
+token.json
+credentials.json
+*.json.key
+service-account*.json

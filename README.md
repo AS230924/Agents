@@ -1,6 +1,18 @@
+---
+title: E-commerce PM OS
+emoji: 🎯
+colorFrom: blue
+colorTo: indigo
+sdk: gradio
+sdk_version: "4.44.0"
+app_file: app.py
+pinned: false
+license: mit
+---
+
 # 🎯 PM OS - Product Manager Operating System
 
-A multi-agent AI assistant for Product Managers, built with Python and Streamlit.
+A multi-agent AI assistant for Product Managers, built with Python and Gradio.
 
 PM OS automatically routes your questions to specialized agents, each with their own tools and expertise. Just describe what you need help with, and the right agent handles it.
 
@@ -10,9 +22,9 @@ PM OS automatically routes your questions to specialized agents, each with their
 - **Automatic Routing** - Intent classification selects the right agent
 - **Tool Use** - Agents use structured tools for consistent outputs
 - **Decision Logging** - Automatic capture of key decisions
-- **Quality Scoring** - Auto-evaluation of response quality
-- **Web Search** - Market research and competitive intel (optional)
-- **CSV Export** - Download decisions for Google Sheets
+- **Knowledge Base** - Graph + vector retrieval for domain context
+- **Google Docs/Sheets Export** - PRDs auto-export to Docs, user stories to Sheets
+- **Shareable** - One-click Gradio share link or deploy to HF Spaces
 
 ---
 
@@ -25,28 +37,48 @@ cd pm_os
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Run the app
-streamlit run app.py
+# 3. Set your API key
+export ANTHROPIC_API_KEY="sk-ant-..."
+
+# 4. Run the app
+python -m pm_os.gradio_app
 ```
 
-Open http://localhost:8501 in your browser.
+Open http://localhost:7860 in your browser.
+
+### Share instantly
+
+```bash
+# Generate a temporary public link (expires in 72h)
+GRADIO_SHARE=1 python -m pm_os.gradio_app
+```
+
+### Deploy to Hugging Face Spaces
+
+1. Create a new Space on [huggingface.co/new-space](https://huggingface.co/new-space) (SDK: Gradio)
+2. Push this repo to the Space
+3. Add `ANTHROPIC_API_KEY` in Settings > Secrets
+4. (Optional) Add `GOOGLE_SERVICE_ACCOUNT_FILE` or `GOOGLE_CREDENTIALS_JSON` for doc export
 
 ---
 
 ## Configuration
 
 ### Required
-| Setting | Description | Get From |
-|---------|-------------|----------|
-| OpenRouter API Key | LLM access (Claude) | [openrouter.ai](https://openrouter.ai) |
+| Variable | Description | Get From |
+|----------|-------------|----------|
+| `ANTHROPIC_API_KEY` | Claude API key for intent classification + agents | [console.anthropic.com](https://console.anthropic.com) |
 
 ### Optional
-| Setting | Description | Get From |
-|---------|-------------|----------|
-| SerpAPI Key | Web search for market research | [serpapi.com](https://serpapi.com) |
-| Google Sheet ID | Quick link to your export sheet | Your Google Sheet URL |
+| Variable | Description | Get From |
+|----------|-------------|----------|
+| `GOOGLE_SERVICE_ACCOUNT_FILE` | Path to Google service account JSON key | [Google Cloud Console](https://console.cloud.google.com/iam-admin/serviceaccounts) |
+| `GOOGLE_CREDENTIALS_JSON` | Inline service account JSON (alternative) | Same as above |
+| `GOOGLE_DRIVE_FOLDER_ID` | Drive folder to place exported docs | Your Google Drive |
+| `GRADIO_SHARE` | Set to `1` to generate a public share link | — |
+| `GRADIO_SERVER_PORT` | Port to listen on (default: 7860) | — |
 
-Enter these in the sidebar when running the app.
+Set these via `.env` file or `export` in your shell.
 
 ---
 
@@ -150,24 +182,41 @@ Enter these in the sidebar when running the app.
 ## Architecture
 
 ```
+app.py                      # HF Spaces / standalone entrypoint
 pm_os/
-├── app.py              # Streamlit UI - main entry point
-├── router.py           # Intent classification & agent routing
-├── memory.py           # Session memory & decision logging
-├── evaluation.py       # Quality scoring & feedback
-├── web_search.py       # SerpAPI integration
-├── sheets_export.py    # CSV export for Google Sheets
-├── requirements.txt    # Dependencies
+├── gradio_app.py           # Gradio chat UI
+├── requirements.txt        # Dependencies
 │
-└── agents/
-    ├── __init__.py     # Agent registry
-    ├── base.py         # BaseAgent with agentic tool loop
-    ├── framer.py       # 🔍 5 Whys analysis
-    ├── strategist.py   # 📊 Prioritization
-    ├── aligner.py      # 🤝 Stakeholder prep
-    ├── executor.py     # 🚀 MVP scoping
-    ├── narrator.py     # 📝 Exec summaries
-    └── doc_engine.py   # 📄 PRD generation
+├── core/                   # Pipeline
+│   ├── router.py           # Orchestrator: context → classify → enforce → execute → export
+│   ├── intent_classifier.py# Claude-based intent detection
+│   ├── context_builder.py  # Session + KB context enrichment
+│   └── workflow_enforcer.py# Business rule enforcement
+│
+├── agents/                 # Specialized agents
+│   ├── base.py             # BaseAgent (LLM calls)
+│   ├── framer.py           # 🔍 Problem framing
+│   ├── strategist.py       # 📊 Prioritization
+│   ├── aligner.py          # 🤝 Stakeholder alignment
+│   ├── executor.py         # 🚀 PRD + user stories
+│   ├── narrator.py         # 📝 Exec summaries
+│   ├── scout.py            # 🔎 Market research
+│   └── registry.py         # Agent registry + sequence executor
+│
+├── export/                 # Google Workspace integration
+│   ├── google_auth.py      # Service account / OAuth2 auth
+│   ├── exporter.py         # Unified export facade
+│   ├── docs_export.py      # PRD → Google Docs
+│   └── sheets_export.py    # User Stories → Google Sheets
+│
+├── kb/                     # Knowledge base
+│   ├── loader.py           # Seed data loader
+│   ├── graph_store.py      # Entity graph (NetworkX)
+│   ├── vector_store.py     # Semantic index (ChromaDB)
+│   └── retriever.py        # Agent-specific KB retrieval
+│
+└── store/                  # State management
+    └── state_store.py      # SQLite session store
 ```
 
 ---
@@ -210,83 +259,26 @@ pm_os/
 
 ---
 
-## Exporting Data
+## Google Docs/Sheets Export
 
-### Decision Log
-1. Chat with agents to generate decisions
-2. Go to **Decision Log** tab
-3. Click **Download CSV**
-4. Import into Google Sheets
+When the Executor agent produces a PRD or user stories, documents are automatically
+exported to Google Workspace:
 
-### All Outputs
-- Click **All Outputs CSV** to export full conversation history
+| Output Type | Destination | What's Created |
+|-------------|-------------|----------------|
+| PRD | Google Docs | Formatted doc with sections, requirements, scope |
+| User Stories | Google Sheets | Spreadsheet with priority color-coding, frozen headers |
+| Combined | Both | One Google Doc + one Google Sheet |
 
-### Google Sheets Setup
-Create a sheet with these columns:
-```
-Date | Agent | Query | Decision | Score
-```
-
----
-
-## UI Tabs
-
-| Tab | Purpose |
-|-----|---------|
-| 💬 **Chat** | Main conversation interface |
-| 📋 **Decision Log** | View and export logged decisions |
-| 📊 **Analytics** | Quality scores and feedback stats |
-| 🤖 **Agents** | Reference for all agents and tools |
-
----
-
-## Quality Scoring
-
-Each response is automatically scored on:
-
-- **Completeness** (1-5): Covers expected sections
-- **Actionability** (1-5): Outputs are actionable
-- **Structure** (1-5): Well-formatted markdown
-- **Relevance** (1-5): Addresses the query
-
-Rate responses with 👍/👎 to track what works.
-
----
-
-## Environment Variables (Optional)
-
-```bash
-export OPENROUTER_API_KEY="sk-or-..."
-export SERPAPI_KEY="your-serpapi-key"
-export GOOGLE_SHEET_ID="your-sheet-id"
-```
+Export links appear in the chat response. To enable, set up a Google service account
+with Docs, Sheets, and Drive API access.
 
 ---
 
 ## Requirements
 
 - Python 3.9+
-- Dependencies:
-  - `anthropic>=0.39.0`
-  - `streamlit>=1.30.0`
-
----
-
-## Running on Google Colab
-
-```python
-!pip install streamlit anthropic
-
-# Write your API key
-import os
-os.environ["OPENROUTER_API_KEY"] = "sk-or-..."
-
-# Run in background
-!streamlit run pm_os/app.py &>/dev/null &
-
-# After a few seconds, click the URL shown or use localtunnel
-!npx localtunnel --port 8501
-```
+- Dependencies: see `pm_os/requirements.txt`
 
 ---
 
