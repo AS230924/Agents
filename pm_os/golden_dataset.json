@@ -364,6 +364,71 @@
     "notes": "Rollout planning"
   },
   {
+    "id": "HP-E-006",
+    "test_type": "happy_path",
+    "category": "Documentation",
+    "subcategory": "PRD Generation",
+    "adversarial_type": null,
+    "user_query": "We've decided to add one-click checkout. Write the PRD for it.",
+    "expected_intent": "Executor",
+    "failure_mode": null,
+    "difficulty": "easy",
+    "ecommerce_context": "checkout_mvp",
+    "notes": "Post-decision PRD request — decision already made"
+  },
+  {
+    "id": "HP-E-007",
+    "test_type": "happy_path",
+    "category": "Documentation",
+    "subcategory": "User Stories",
+    "adversarial_type": null,
+    "user_query": "Create user stories for the loyalty points redemption feature we scoped last week.",
+    "expected_intent": "Executor",
+    "failure_mode": null,
+    "difficulty": "easy",
+    "ecommerce_context": "retention",
+    "notes": "Post-scoping user story request — scope already defined"
+  },
+  {
+    "id": "HP-E-008",
+    "test_type": "happy_path",
+    "category": "Documentation",
+    "subcategory": "PRD + Stories",
+    "adversarial_type": null,
+    "user_query": "We've approved the search redesign. Write the PRD and break it into user stories with acceptance criteria.",
+    "expected_intent": "Executor",
+    "failure_mode": null,
+    "difficulty": "medium",
+    "ecommerce_context": "search_discovery",
+    "notes": "Combined PRD + user stories — decision is clear"
+  },
+  {
+    "id": "HP-E-009",
+    "test_type": "happy_path",
+    "category": "Documentation",
+    "subcategory": "Acceptance Criteria",
+    "adversarial_type": null,
+    "user_query": "Write acceptance criteria for the guest checkout feature we decided to build.",
+    "expected_intent": "Executor",
+    "failure_mode": null,
+    "difficulty": "easy",
+    "ecommerce_context": "checkout_mvp",
+    "notes": "Specific acceptance criteria request — scope is decided"
+  },
+  {
+    "id": "HP-E-010",
+    "test_type": "happy_path",
+    "category": "Documentation",
+    "subcategory": "Feature Spec",
+    "adversarial_type": null,
+    "user_query": "The team approved the product filtering MVP. Write the product requirements document.",
+    "expected_intent": "Executor",
+    "failure_mode": null,
+    "difficulty": "medium",
+    "ecommerce_context": "search_discovery",
+    "notes": "Post-approval PRD request"
+  },
+  {
     "id": "HP-N-001",
     "test_type": "happy_path",
     "category": "Reporting",
@@ -631,7 +696,7 @@
     "adversarial_type": "Keyword Collision",
     "user_query": "Define MVP for mobile optimization and write the PRD.",
     "expected_intent": "Framer",
-    "failure_mode": "Routes to Executor or Doc Engine",
+    "failure_mode": "Routes to Executor due to 'MVP' and 'PRD'",
     "difficulty": "hard",
     "ecommerce_context": "mobile_gap",
     "notes": "Problem not yet understood"
@@ -826,7 +891,7 @@
     "adversarial_type": "PRD-as-Crutch",
     "user_query": "Write a PRD for improving our checkout and we'll figure out the details later.",
     "expected_intent": "Framer",
-    "failure_mode": "Routes to Doc Engine",
+    "failure_mode": "Routes to Executor due to 'PRD'",
     "difficulty": "hard",
     "ecommerce_context": "checkout_mvp",
     "notes": "Can't document unclear scope"
@@ -839,7 +904,7 @@
     "adversarial_type": "PRD-as-Crutch",
     "user_query": "Create a technical spec for rebuilding search.",
     "expected_intent": "Framer",
-    "failure_mode": "Routes to Doc Engine",
+    "failure_mode": "Routes to Executor due to 'spec'",
     "difficulty": "hard",
     "ecommerce_context": "search_discovery",
     "notes": "Search problems not diagnosed"
@@ -852,7 +917,7 @@
     "adversarial_type": "PRD-as-Crutch",
     "user_query": "Draft an RFC for our new recommendation engine approach.",
     "expected_intent": "Strategist",
-    "failure_mode": "Routes to Doc Engine",
+    "failure_mode": "Routes to Executor due to 'RFC'",
     "difficulty": "hard",
     "ecommerce_context": "recommendation_rollout",
     "notes": "Approach not yet decided"
@@ -865,7 +930,7 @@
     "adversarial_type": "PRD-as-Crutch",
     "user_query": "Document our 2024 e-commerce roadmap.",
     "expected_intent": "Strategist",
-    "failure_mode": "Routes to Doc Engine",
+    "failure_mode": "Routes to Executor due to 'document'",
     "difficulty": "hard",
     "ecommerce_context": "roadmap",
     "notes": "Roadmap not yet prioritized"
@@ -878,7 +943,7 @@
     "adversarial_type": "PRD-as-Crutch",
     "user_query": "Let's document the entire returns process before deciding what to fix.",
     "expected_intent": "Framer",
-    "failure_mode": "Routes to Doc Engine",
+    "failure_mode": "Routes to Executor due to 'document'",
     "difficulty": "hard",
     "ecommerce_context": "returns",
     "notes": "Documentation without purpose"

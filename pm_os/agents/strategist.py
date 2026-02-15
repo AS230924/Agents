@@ -1,348 +1,98 @@
 """
-Strategist Agent - Prioritization using scoring frameworks
+Strategist agent — Decision & Trade-off Engine.
+
+Job: Structure decisions between competing options using frameworks (RICE,
+     cost-benefit), quantify trade-offs, and produce a clear recommendation.
 """
 
-from .base import BaseAgent, AgentConfig, Tool, extract_section, parse_markdown_table
-import json
+from pm_os.agents.base import BaseAgent, parse_json_from_response
 
-# Import web search functions - handle both package and direct execution
-try:
-    from web_search import search_competitors, search_market_trends, search_user_feedback
-except ImportError:
-    from ..web_search import search_competitors, search_market_trends, search_user_feedback
+_SYSTEM = """\
+You are the **Strategist** — a Decision & Trade-off Engine for e-commerce product managers.
 
+# Your Job
+When the PM has a framed problem and needs to choose between options, you structure
+the decision with frameworks, quantify trade-offs, and make a clear recommendation.
 
-def add_option(name: str, description: str) -> str:
-    """Add an option to be evaluated."""
-    return json.dumps({
-        "option": name,
-        "description": description,
-        "status": "added"
-    })
+# How You Work
+1. Identify the decision to be made and the options available
+2. Select an appropriate framework (RICE, cost-benefit, weighted scoring)
+3. Score each option across dimensions (reach, impact, confidence, effort)
+4. Surface trade-offs between options (e.g. short-term conversion vs long-term retention)
+5. Make a clear recommendation with rationale
+6. Identify risks and mitigation strategies
 
+# Context-Check-First Protocol
+BEFORE asking clarifying questions, you MUST exhaust all available context:
+1. Check **session state** — has a Framer output already defined the problem and hypotheses?
+2. Check **prior turns** — did the user already mention options, constraints, or goals?
+3. Check **KB context** — are there past decisions, benchmarks, or framework precedents?
+4. Check **mentioned metrics** — are there numbers you can use for scoring?
+5. Check **ecommerce context** — does the domain narrow the relevant frameworks?
 
-def score_option(
-    option_name: str,
-    impact: int,
-    effort: int,
-    strategic_fit: int,
-    risk: int,
-    notes: str = ""
-) -> str:
-    """Score an option on the evaluation criteria. Returns weighted total."""
-    # Weights: Impact (35%), Effort (25%), Strategic Fit (25%), Risk (15%)
-    # Note: For effort, lower effort = better, so we invert (6 - effort)
-    weighted_total = (
-        impact * 0.35 +
-        (6 - effort) * 0.25 +  # Invert effort so lower effort = higher score
-        strategic_fit * 0.25 +
-        risk * 0.15
-    )
-    raw_total = impact + effort + strategic_fit + risk
+Only set status to "needs_clarification" if you cannot identify at least 2 viable options
+or if the decision criteria are fundamentally ambiguous after checking all sources above.
 
-    return json.dumps({
-        "option": option_name,
-        "scores": {
-            "impact": impact,
-            "effort": effort,
-            "strategic_fit": strategic_fit,
-            "risk": risk
-        },
-        "raw_total": raw_total,
-        "weighted_score": round(weighted_total, 2),
-        "notes": notes
-    })
+# Guardrails
+- NEVER diagnose problems (that's Framer's job)
+- NEVER give opinions without structured analysis
+- Quantify trade-offs wherever possible
+- Reference past decisions and their outcomes when relevant
+- Flag if the problem hasn't been properly framed first
+- Ask clarifying questions ONLY after exhausting all backend context
 
+# Knowledge Context
+{kb_context}
 
-def compare_options(option_scores: str) -> str:
-    """Compare scored options and determine the winner."""
-    try:
-        scores = json.loads(option_scores)
-        if isinstance(scores, list):
-            sorted_options = sorted(scores, key=lambda x: x.get("weighted_score", 0), reverse=True)
-            winner = sorted_options[0] if sorted_options else None
-            return json.dumps({
-                "ranked_options": sorted_options,
-                "recommended": winner["option"] if winner else "Unable to determine",
-                "confidence": "high" if len(sorted_options) > 1 and
-                    sorted_options[0].get("weighted_score", 0) - sorted_options[1].get("weighted_score", 0) > 0.5
-                    else "medium"
-            })
-    except:
-        pass
-    return json.dumps({"error": "Could not parse options for comparison"})
-
-
-def analyze_tradeoffs(option_a: str, option_b: str, key_difference: str) -> str:
-    """Analyze trade-offs between two options."""
-    return json.dumps({
-        "comparison": f"{option_a} vs {option_b}",
-        "key_difference": key_difference,
-        "status": "analyzed"
-    })
+# Output Format
+Respond with valid JSON only (no markdown fences):
+{{
+  "status": "complete | needs_clarification",
+  "decision_statement": "What decision needs to be made",
+  "decision_framework": "RICE | Cost-Benefit | Weighted Scoring",
+  "options": [
+    {{
+      "option": "name",
+      "description": "what this means",
+      "reach": "who/how many affected",
+      "impact": 1-10,
+      "confidence": 0.0-1.0,
+      "effort": "estimate (sprints, weeks)",
+      "score": 0.0,
+      "pros": ["..."],
+      "cons": ["..."]
+    }}
+  ],
+  "tradeoffs": {{
+    "key_tension": "description of the core trade-off"
+  }},
+  "recommendation": "clear recommendation with rationale",
+  "risks": [
+    {{"risk": "description", "mitigation": "how to mitigate", "severity": "high|medium|low"}}
+  ],
+  "resource_requirements": {{"team": "estimate"}},
+  "past_precedent": "relevant past decisions if any",
+  "context_used": ["what existing context you leveraged to avoid asking"],
+  "clarifying_questions": ["question if needed — only when status is needs_clarification"],
+  "next_agent": "Aligner | Executor | null",
+  "confidence": 0.0-1.0
+}}"""
 
 
-STRATEGIST_TOOLS = [
-    Tool(
-        name="add_option",
-        description="Add an option to be evaluated in the prioritization framework",
-        input_schema={
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "description": "Name of the option (e.g., 'AI Features', 'Enterprise Security')"
-                },
-                "description": {
-                    "type": "string",
-                    "description": "Brief description of what this option entails"
-                }
-            },
-            "required": ["name", "description"]
-        },
-        function=add_option
-    ),
-    Tool(
-        name="score_option",
-        description="Score an option on the 4 criteria: Impact (1-5), Effort (1-5 where 1=easy, 5=hard), Strategic Fit (1-5), Risk (1-5 where 5=low risk/high confidence)",
-        input_schema={
-            "type": "object",
-            "properties": {
-                "option_name": {
-                    "type": "string",
-                    "description": "Name of the option being scored"
-                },
-                "impact": {
-                    "type": "integer",
-                    "description": "Business/user impact score (1-5, where 5=highest impact)",
-                    "minimum": 1,
-                    "maximum": 5
-                },
-                "effort": {
-                    "type": "integer",
-                    "description": "Implementation effort (1-5, where 1=easiest, 5=hardest)",
-                    "minimum": 1,
-                    "maximum": 5
-                },
-                "strategic_fit": {
-                    "type": "integer",
-                    "description": "Alignment with company strategy (1-5, where 5=perfect fit)",
-                    "minimum": 1,
-                    "maximum": 5
-                },
-                "risk": {
-                    "type": "integer",
-                    "description": "Execution confidence (1-5, where 5=very confident/low risk)",
-                    "minimum": 1,
-                    "maximum": 5
-                },
-                "notes": {
-                    "type": "string",
-                    "description": "Brief notes on the scoring rationale"
-                }
-            },
-            "required": ["option_name", "impact", "effort", "strategic_fit", "risk"]
-        },
-        function=score_option
-    ),
-    Tool(
-        name="compare_options",
-        description="Compare all scored options and determine the recommended choice",
-        input_schema={
-            "type": "object",
-            "properties": {
-                "option_scores": {
-                    "type": "string",
-                    "description": "JSON array of option scores from score_option calls"
-                }
-            },
-            "required": ["option_scores"]
-        },
-        function=compare_options
-    ),
-    Tool(
-        name="analyze_tradeoffs",
-        description="Document key trade-offs between options",
-        input_schema={
-            "type": "object",
-            "properties": {
-                "option_a": {
-                    "type": "string",
-                    "description": "First option"
-                },
-                "option_b": {
-                    "type": "string",
-                    "description": "Second option"
-                },
-                "key_difference": {
-                    "type": "string",
-                    "description": "The key trade-off or difference between these options"
-                }
-            },
-            "required": ["option_a", "option_b", "key_difference"]
-        },
-        function=analyze_tradeoffs
-    ),
-    # Web search tools for market research
-    Tool(
-        name="search_competitors",
-        description="Search for competitors and alternatives to a company or product. Use this to research the competitive landscape.",
-        input_schema={
-            "type": "object",
-            "properties": {
-                "company_or_product": {
-                    "type": "string",
-                    "description": "Name of the company or product to research competitors for"
-                }
-            },
-            "required": ["company_or_product"]
-        },
-        function=search_competitors
-    ),
-    Tool(
-        name="search_market_trends",
-        description="Search for market trends and industry insights. Use this to understand market direction and opportunities.",
-        input_schema={
-            "type": "object",
-            "properties": {
-                "topic": {
-                    "type": "string",
-                    "description": "Topic or industry to research trends for"
-                }
-            },
-            "required": ["topic"]
-        },
-        function=search_market_trends
-    ),
-    Tool(
-        name="search_user_feedback",
-        description="Search for user reviews, feedback, and complaints about a product. Use this to understand user sentiment.",
-        input_schema={
-            "type": "object",
-            "properties": {
-                "product": {
-                    "type": "string",
-                    "description": "Product name to find user feedback for"
-                }
-            },
-            "required": ["product"]
-        },
-        function=search_user_feedback
-    )
-]
+class Strategist(BaseAgent):
+    name = "Strategist"
 
+    def system_prompt(self, kb_context: str) -> str:
+        return _SYSTEM.format(kb_context=kb_context or "No additional context available.")
 
-STRATEGIST_SYSTEM_PROMPT = """You are the Strategist Agent, a PM expert at prioritization and strategic decision-making.
+    def parse_output(self, raw: str) -> dict:
+        return parse_json_from_response(raw)
 
-Your role: Help PMs make clear prioritization decisions using structured scoring frameworks.
-
-## Web Search Capabilities
-
-You have access to web search tools for market research:
-- **search_competitors**: Find competitors and alternatives for competitive analysis
-- **search_market_trends**: Research industry trends to inform strategy
-- **search_user_feedback**: Find user reviews and sentiment about products
-
-Use these tools when you need external data to inform scoring decisions.
-
-## Your Process
-
-1. **Research (if needed)**: Use search tools to gather competitive intel or market data
-2. **Identify Options**: Use add_option for each choice being considered
-3. **Define Context**: Understand the business context and constraints
-4. **Score Each Option**: Use score_option for each option with careful reasoning
-   - Impact (1-5): How much value does this deliver?
-   - Effort (1-5): How hard is this to build? (1=easy, 5=very hard)
-   - Strategic Fit (1-5): How well does this align with company goals?
-   - Risk (1-5): How confident are we? (5=very confident, 1=high uncertainty)
-4. **Analyze Trade-offs**: Use analyze_tradeoffs to document key considerations
-5. **Make Recommendation**: Be decisive - PMs need clear direction
-
-## Scoring Guidelines
-
-**Impact:**
-- 5 = Game-changing, affects core metrics significantly
-- 4 = High value, clear positive impact
-- 3 = Moderate value, nice to have
-- 2 = Limited value, incremental improvement
-- 1 = Minimal value, unclear benefit
-
-**Effort:**
-- 1 = Quick win, days of work
-- 2 = Small project, 1-2 weeks
-- 3 = Medium project, 1 month
-- 4 = Large project, 1 quarter
-- 5 = Major initiative, multiple quarters
-
-**Strategic Fit:**
-- 5 = Core to company mission/OKRs
-- 4 = Strongly aligned with strategy
-- 3 = Somewhat aligned
-- 2 = Tangentially related
-- 1 = Not strategically important
-
-**Risk (Confidence):**
-- 5 = Very confident, clear path
-- 4 = Confident, minor unknowns
-- 3 = Moderate confidence, some risks
-- 2 = Uncertain, significant risks
-- 1 = High risk, many unknowns
-
-## Output Format
-
-## Prioritization Analysis
-
-**Options Under Consideration:**
-1. [Option A] - [description]
-2. [Option B] - [description]
-
-**Scoring Matrix:**
-
-| Option | Impact | Effort | Strategic Fit | Risk | Weighted Score |
-|--------|--------|--------|---------------|------|----------------|
-| [A]    | X      | X      | X             | X    | X.XX           |
-| [B]    | X      | X      | X             | X    | X.XX           |
-
-**Scoring Rationale:**
-- [Option A]: [Why these scores]
-- [Option B]: [Why these scores]
-
-**Key Trade-offs:**
-- [Trade-off 1]
-- [Trade-off 2]
-
-**Recommendation:** [CLEAR CHOICE]
-
-[2-3 sentences explaining why this is the right choice]
-
-**Next Steps:**
-1. [Immediate action]
-2. [Follow-up action]
-3. [Validation step]
-
-## Important
-- Be decisive. A clear recommendation with reasoning beats hedging.
-- If it's close, explain what would tip the decision one way or the other.
-- Consider both short-term wins and long-term value."""
-
-
-def parse_strategist_output(text: str) -> dict:
-    """Parse Strategist agent output into structured data."""
-    return {
-        "recommendation": extract_section(text, "Recommendation"),
-        "has_matrix": "Scoring Matrix" in text or "|" in text,
-        "has_tradeoffs": "Trade-off" in text or "trade-off" in text
-    }
-
-
-def create_strategist_agent() -> BaseAgent:
-    """Create and return the Strategist agent."""
-    config = AgentConfig(
-        name="Strategist",
-        emoji="📊",
-        description="Prioritization with scoring frameworks - makes decisions",
-        system_prompt=STRATEGIST_SYSTEM_PROMPT,
-        tools=STRATEGIST_TOOLS,
-        output_parser=parse_strategist_output
-    )
-    return BaseAgent(config)
+    def state_updates_from_output(self, output: dict) -> dict:
+        if (
+            output.get("status") == "complete"
+            and output.get("recommendation")
+            and not output.get("parse_error")
+        ):
+            return {"decision_state": "open"}
+        return {}

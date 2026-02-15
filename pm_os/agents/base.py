@@ -1,193 +1,176 @@
 """
-PM OS Agents - Base classes and shared utilities
+Base agent — shared execution logic for all PM OS agents.
+
+Each concrete agent defines:
+  - SYSTEM_PROMPT: the agent's persona, job, guardrails
+  - OUTPUT_INSTRUCTIONS: structured output format
+  - kb_collections / kb_traversals: which KB slices it needs
+
+The base class handles:
+  - Two-stage context injection (broad + deep)
+  - LLM call via Anthropic
+  - Structured output parsing
+  - State update extraction
 """
 
-from dataclasses import dataclass, field
-from typing import Optional, Callable
-from abc import ABC, abstractmethod
 import json
-import anthropic
+import logging
+import os
+from abc import ABC, abstractmethod
+
+from pm_os.config.agent_kb import get_agent_kb
+from pm_os.kb.retriever import KBRetriever
+from pm_os.kb.schemas import AGENT_KB_ACCESS
+
+log = logging.getLogger(__name__)
 
 
-@dataclass
-class Tool:
-    """Represents a tool that an agent can use."""
-    name: str
-    description: str
-    input_schema: dict
-    function: Callable
+def _get_llm_client():
+    """Return an Anthropic client (lazy, no import at module level)."""
+    try:
+        import anthropic
+        return anthropic.Anthropic()
+    except Exception:
+        pass
 
-    def to_anthropic_tool(self) -> dict:
-        """Convert to Anthropic tool format."""
-        return {
-            "name": self.name,
-            "description": self.description,
-            "input_schema": self.input_schema
-        }
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if api_key:
+        import anthropic
+        return anthropic.Anthropic(
+            api_key=api_key,
+            base_url="https://openrouter.ai/api/v1",
+        )
 
-
-@dataclass
-class AgentConfig:
-    """Configuration for an agent."""
-    name: str
-    emoji: str
-    description: str
-    system_prompt: str
-    tools: list[Tool] = field(default_factory=list)
-    output_parser: Optional[Callable] = None
+    raise RuntimeError(
+        "No LLM client available. Set ANTHROPIC_API_KEY or OPENROUTER_API_KEY."
+    )
 
 
 class BaseAgent(ABC):
     """Base class for all PM OS agents."""
 
-    def __init__(self, config: AgentConfig):
-        self.config = config
-        self.name = config.name
-        self.emoji = config.emoji
-        self.description = config.description
-        self.system_prompt = config.system_prompt
-        self.tools = config.tools
-        self.output_parser = config.output_parser
+    name: str = ""
+    model: str = "claude-sonnet-4-5-20250929"
+    max_tokens: int = 2048
+    temperature: float = 0.3
 
-    @property
-    def display_name(self) -> str:
-        return f"{self.emoji} {self.name} Agent"
+    @abstractmethod
+    def system_prompt(self, kb_context: str) -> str:
+        """Return the full system prompt, with KB context injected."""
 
-    def get_tools_for_api(self) -> list[dict]:
-        """Get tools in Anthropic API format."""
-        return [tool.to_anthropic_tool() for tool in self.tools]
+    @abstractmethod
+    def parse_output(self, raw: str) -> dict:
+        """Parse the LLM response into the agent's structured output."""
 
-    def execute_tool(self, tool_name: str, tool_input: dict) -> str:
-        """Execute a tool by name."""
-        for tool in self.tools:
-            if tool.name == tool_name:
-                return tool.function(**tool_input)
-        return f"Tool '{tool_name}' not found"
+    def state_updates_from_output(self, output: dict) -> dict:
+        """Extract state transitions from agent output. Override per agent."""
+        return {}
 
     def run(
         self,
-        user_message: str,
-        conversation_history: list[dict],
-        api_key: str,
-        provider: str = "anthropic"
-    ) -> tuple[str, dict]:
+        query: str,
+        enriched_context: dict,
+        retriever: KBRetriever | None = None,
+    ) -> dict:
         """
-        Run the agent with tool use support.
+        Execute the agent.
+
+        Args:
+            query: original user query
+            enriched_context: output of context_builder.build_context()
+            retriever: KB retriever (optional, for deep agent-specific retrieval)
 
         Returns:
-            Tuple of (response_text, metadata)
+            Agent output dict matching the router's agent_output schema.
         """
-        client = self._get_client(api_key, provider)
-        model = self._get_model(provider)
+        # 1. Deep KB retrieval (agent-specific)
+        kb_context = ""
+        if retriever:
+            try:
+                ecommerce_context = enriched_context.get("context", {}).get(
+                    "ecommerce_context", "general"
+                )
+                result = retriever.retrieve(
+                    agent_name=self.name,
+                    query=query,
+                    ecommerce_context=ecommerce_context,
+                    n_results=5,
+                )
+                kb_context = result.get("summary", "")
+            except Exception as e:
+                log.warning("KB retrieval failed for %s: %s", self.name, e)
 
-        messages = list(conversation_history)
-        messages.append({"role": "user", "content": user_message})
+        # 2. Build the user message with full context
+        user_message = self._build_user_message(query, enriched_context)
 
-        tools = self.get_tools_for_api() if self.tools else None
-        metadata = {"tools_used": [], "iterations": 0}
+        # 3. Call LLM
+        system = self.system_prompt(kb_context)
+        raw_response = self._call_llm(system, user_message)
 
-        # Agentic loop - keep going until no more tool calls
-        max_iterations = 10
-        while metadata["iterations"] < max_iterations:
-            metadata["iterations"] += 1
+        # 4. Parse structured output
+        try:
+            primary_output = self.parse_output(raw_response)
+        except Exception as e:
+            log.warning("Output parse failed for %s: %s", self.name, e)
+            primary_output = {"raw": raw_response, "parse_error": str(e)}
 
-            kwargs = {
-                "model": model,
-                "max_tokens": 4096,
-                "system": self.system_prompt,
-                "messages": messages
-            }
-            if tools:
-                kwargs["tools"] = tools
+        # 5. Extract state updates
+        state_updates = self.state_updates_from_output(primary_output)
 
-            response = client.messages.create(**kwargs)
+        return {
+            "agent": self.name,
+            "status": "success",
+            "primary_output": primary_output,
+            "next_recommended_agent": primary_output.get("next_agent"),
+            "state_updates": state_updates,
+            "confidence": primary_output.get("confidence", 0.8),
+        }
 
-            # Check if we need to handle tool calls
-            if response.stop_reason == "tool_use":
-                # Process tool calls
-                assistant_content = response.content
-                messages.append({"role": "assistant", "content": assistant_content})
+    def _build_user_message(self, query: str, ctx: dict) -> str:
+        """Assemble the user-facing prompt with session context."""
+        context = ctx.get("context", {})
+        prior = context.get("prior_turns", [])
 
-                tool_results = []
-                for block in assistant_content:
-                    if block.type == "tool_use":
-                        tool_name = block.name
-                        tool_input = block.input
-                        tool_id = block.id
+        parts = [f"## Query\n{query}"]
 
-                        # Execute the tool
-                        result = self.execute_tool(tool_name, tool_input)
-                        metadata["tools_used"].append({
-                            "name": tool_name,
-                            "input": tool_input,
-                            "output": result
-                        })
-
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": tool_id,
-                            "content": result
-                        })
-
-                messages.append({"role": "user", "content": tool_results})
-            else:
-                # No more tool calls, extract final text
-                final_text = ""
-                for block in response.content:
-                    if hasattr(block, "text"):
-                        final_text += block.text
-
-                # Parse output if parser exists
-                if self.output_parser:
-                    parsed = self.output_parser(final_text)
-                    metadata["parsed_output"] = parsed
-
-                return final_text, metadata
-
-        return "Max iterations reached", metadata
-
-    def _get_client(self, api_key: str, provider: str):
-        if provider == "anthropic":
-            return anthropic.Anthropic(api_key=api_key)
-        # Default to OpenRouter
-        return anthropic.Anthropic(
-            api_key=api_key,
-            base_url="https://openrouter.ai/api/v1"
+        parts.append(
+            f"\n## Session State\n"
+            f"- Problem state: {ctx.get('problem_state', 'undefined')}\n"
+            f"- Decision state: {ctx.get('decision_state', 'none')}\n"
+            f"- E-commerce context: {context.get('ecommerce_context', 'general')}"
         )
 
-    def _get_model(self, provider: str) -> str:
-        if provider == "anthropic":
-            return "claude-sonnet-4-20250514"
-        # Default to OpenRouter
-        return "anthropic/claude-sonnet-4"
+        if context.get("metrics", {}).get("mentioned_values"):
+            parts.append(
+                f"- Mentioned values: {', '.join(context['metrics']['mentioned_values'])}"
+            )
+
+        if prior:
+            parts.append("\n## Prior Turns")
+            for t in prior[-5:]:
+                parts.append(f"- [{t.get('intent', '?')}] {t.get('query', '')}")
+
+        return "\n".join(parts)
+
+    def _call_llm(self, system: str, user_message: str) -> str:
+        """Call the LLM and return the text response."""
+        client = _get_llm_client()
+        response = client.messages.create(
+            model=self.model,
+            max_tokens=self.max_tokens,
+            temperature=self.temperature,
+            system=system,
+            messages=[{"role": "user", "content": user_message}],
+        )
+        return response.content[0].text
 
 
-# Shared utility functions
-def parse_markdown_table(text: str) -> list[dict]:
-    """Parse a markdown table into list of dicts."""
-    lines = text.strip().split("\n")
-    if len(lines) < 3:
-        return []
-
-    # Find header row
-    headers = [h.strip() for h in lines[0].split("|") if h.strip()]
-
-    # Skip separator row, parse data rows
-    data = []
-    for line in lines[2:]:
-        if "|" in line:
-            values = [v.strip() for v in line.split("|") if v.strip()]
-            if len(values) == len(headers):
-                data.append(dict(zip(headers, values)))
-
-    return data
-
-
-def extract_section(text: str, section_name: str) -> Optional[str]:
-    """Extract a named section from markdown text."""
-    import re
-    pattern = rf"\*\*{section_name}:\*\*\s*(.*?)(?=\*\*|\n\n|$)"
-    match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
-    if match:
-        return match.group(1).strip()
-    return None
+def parse_json_from_response(raw: str) -> dict:
+    """Extract JSON from LLM response, handling markdown fences."""
+    text = raw.strip()
+    if text.startswith("```"):
+        lines = text.split("\n")
+        # Remove first and last fence lines
+        lines = [l for l in lines if not l.strip().startswith("```")]
+        text = "\n".join(lines)
+    return json.loads(text)

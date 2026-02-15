@@ -1,0 +1,85 @@
+{
+  "company": {
+    "id": "company-acme",
+    "name": "Acme Commerce",
+    "vertical": "Fashion & Lifestyle",
+    "stage": "growth",
+    "annual_gmv": "$50M",
+    "yoy_growth": "25%",
+    "channels": ["DTC website", "Mobile web", "Instagram Shop"],
+    "tech_stack": ["Shopify Plus", "Algolia Search", "Klaviyo Email", "Google Analytics"],
+    "key_markets": ["US", "UK"]
+  },
+
+  "current_metrics": {
+    "conversion_rate": {"value": 2.8, "unit": "%", "trend": "declining", "prior": 3.2},
+    "cart_abandonment": {"value": 72, "unit": "%", "trend": "rising", "prior": 68},
+    "aov": {"value": 95, "unit": "$", "trend": "flat", "prior": 97},
+    "cac": {"value": 38, "unit": "$", "trend": "rising", "prior": 32},
+    "repeat_purchase_rate": {"value": 24, "unit": "%", "trend": "declining", "prior": 28},
+    "return_rate": {"value": 22, "unit": "%", "trend": "flat", "prior": 21},
+    "mobile_traffic_share": {"value": 65, "unit": "%", "trend": "rising", "prior": 60},
+    "mobile_conversion": {"value": 1.6, "unit": "%", "trend": "flat", "prior": 1.7},
+    "nps": {"value": 38, "unit": "score", "trend": "declining", "prior": 44}
+  },
+
+  "active_initiatives": [
+    {
+      "id": "init-checkout-v2",
+      "name": "Checkout Redesign v2",
+      "status": "in_progress",
+      "owner_team": "product",
+      "quarter": "Q1 2025",
+      "goal": "Reduce cart abandonment by 10pp",
+      "blockers": ["Payment provider integration delayed"]
+    },
+    {
+      "id": "init-loyalty",
+      "name": "Loyalty Program MVP",
+      "status": "planning",
+      "owner_team": "product",
+      "quarter": "Q2 2025",
+      "goal": "Increase repeat purchase rate from 24% to 30%",
+      "blockers": ["Finance approval pending", "Engineering capacity"]
+    },
+    {
+      "id": "init-search-upgrade",
+      "name": "Search Relevance Upgrade",
+      "status": "planning",
+      "owner_team": "engineering",
+      "quarter": "Q1 2025",
+      "goal": "Reduce null search rate from 22% to 10%",
+      "blockers": []
+    }
+  ],
+
+  "recent_decisions": [
+    {
+      "id": "dec-free-shipping",
+      "name": "Free shipping threshold set at $75",
+      "quarter": "Q4 2024",
+      "status": "decided",
+      "outcome": "AOV increased 8% but margin compressed 1.5pp",
+      "decided_by": "VP Product + Finance",
+      "tags": ["pricing", "shipping", "margin"]
+    },
+    {
+      "id": "dec-no-native-app",
+      "name": "Focus on mobile web over native app",
+      "quarter": "Q3 2024",
+      "status": "decided",
+      "outcome": "Saved 6 months eng time. Mobile web conversion still lagging.",
+      "decided_by": "CPO",
+      "tags": ["mobile", "platform", "resource_allocation"]
+    },
+    {
+      "id": "dec-holiday-promo",
+      "name": "30% sitewide Black Friday promotion",
+      "quarter": "Q4 2024",
+      "status": "decided",
+      "outcome": "GMV up 45% during event. Post-BF conversion dropped 15%. Returns spiked.",
+      "decided_by": "Marketing + Product",
+      "tags": ["promotion", "holiday", "black_friday", "margin"]
+    }
+  ]
+}
