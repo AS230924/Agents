@@ -96,6 +96,7 @@ def classify(enriched_query: dict) -> dict:
     raw = call_llm(
         messages=[{"role": "user", "content": prompt}],
         max_tokens=256,
+        caller="intent_classifier",
     ).strip()
     parsed = _parse_response(raw)
     return parsed

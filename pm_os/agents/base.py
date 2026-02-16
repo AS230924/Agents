@@ -137,6 +137,7 @@ class BaseAgent(ABC):
             system=system,
             max_tokens=self.max_tokens,
             temperature=self.temperature,
+            caller=self.name,
         )
 
 
