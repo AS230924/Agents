@@ -81,7 +81,7 @@ def launch():
         gr.Markdown("Enter an e-commerce PM query to see how it gets classified and routed.")
 
         session_state = gr.State(value="")
-        chatbot = gr.Chatbot(type="messages")
+        chatbot = gr.Chatbot()
         msg = gr.Textbox(placeholder="Ask an e-commerce PM question...", label="Query")
 
         def respond(message, chat_history, session_id):
