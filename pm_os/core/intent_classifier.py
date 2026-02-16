@@ -1,16 +1,14 @@
 """
 LLM-based intent classifier for the E-commerce PM OS Router.
-Uses Claude to determine which agent the user is asking for.
+Uses xAI Grok (primary) with Anthropic Haiku fallback.
 """
 
 import json
-import os
 import re
-
-import anthropic
 
 from pm_os.config.agents import AGENTS, VALID_INTENTS
 from pm_os.config.agent_kb import AGENT_KB, build_classifier_kb_block
+from pm_os.core.llm_client import call_llm
 
 # Build the KB section once at import time
 _KB_BLOCK = build_classifier_kb_block()
@@ -71,20 +69,6 @@ def classify(enriched_query: dict) -> dict:
             "reasoning": "Empty query — defaulting to Framer for clarification.",
         }
 
-    provider = os.environ.get("LLM_PROVIDER", "anthropic").lower()
-
-    if provider == "openrouter":
-        api_key = os.environ.get("OPENROUTER_API_KEY", "")
-        client = anthropic.Anthropic(
-            api_key=api_key,
-            base_url="https://openrouter.ai/api/v1",
-        )
-        model = "anthropic/claude-sonnet-4"
-    else:
-        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        client = anthropic.Anthropic(api_key=api_key)
-        model = "claude-sonnet-4-20250514"
-
     # Extract enriched context fields (with safe defaults for eval mode)
     ctx = enriched_query.get("context", {})
     problem_state = enriched_query.get("problem_state", "undefined")
@@ -109,13 +93,10 @@ def classify(enriched_query: dict) -> dict:
         prior_turns=prior_summary,
     )
 
-    response = client.messages.create(
-        model=model,
-        max_tokens=256,
+    raw = call_llm(
         messages=[{"role": "user", "content": prompt}],
-    )
-
-    raw = response.content[0].text.strip()
+        max_tokens=256,
+    ).strip()
     parsed = _parse_response(raw)
     return parsed
 

@@ -8,49 +8,27 @@ Each concrete agent defines:
 
 The base class handles:
   - Two-stage context injection (broad + deep)
-  - LLM call via Anthropic
+  - LLM call (xAI Grok primary, Anthropic Haiku fallback)
   - Structured output parsing
   - State update extraction
 """
 
 import json
 import logging
-import os
 from abc import ABC, abstractmethod
 
 from pm_os.config.agent_kb import get_agent_kb
+from pm_os.core.llm_client import call_llm
 from pm_os.kb.retriever import KBRetriever
 from pm_os.kb.schemas import AGENT_KB_ACCESS
 
 log = logging.getLogger(__name__)
 
 
-def _get_llm_client():
-    """Return an Anthropic client (lazy, no import at module level)."""
-    try:
-        import anthropic
-        return anthropic.Anthropic()
-    except Exception:
-        pass
-
-    api_key = os.environ.get("OPENROUTER_API_KEY")
-    if api_key:
-        import anthropic
-        return anthropic.Anthropic(
-            api_key=api_key,
-            base_url="https://openrouter.ai/api/v1",
-        )
-
-    raise RuntimeError(
-        "No LLM client available. Set ANTHROPIC_API_KEY or OPENROUTER_API_KEY."
-    )
-
-
 class BaseAgent(ABC):
     """Base class for all PM OS agents."""
 
     name: str = ""
-    model: str = "claude-sonnet-4-5-20250929"
     max_tokens: int = 2048
     temperature: float = 0.3
 
@@ -154,15 +132,12 @@ class BaseAgent(ABC):
 
     def _call_llm(self, system: str, user_message: str) -> str:
         """Call the LLM and return the text response."""
-        client = _get_llm_client()
-        response = client.messages.create(
-            model=self.model,
+        return call_llm(
+            messages=[{"role": "user", "content": user_message}],
+            system=system,
             max_tokens=self.max_tokens,
             temperature=self.temperature,
-            system=system,
-            messages=[{"role": "user", "content": user_message}],
         )
-        return response.content[0].text
 
 
 def parse_json_from_response(raw: str) -> dict:
