@@ -86,8 +86,24 @@ Set these via `.env` file or `export` in your shell.
 
 ## The 6 Agents
 
+### 🔎 Scout
+**Purpose:** Competitive intelligence and market context analysis to inform product strategy and avoid reactive feature copying
+
+**Tools:**
+- `search_competitors` - Analyze competitor features, launches, and positioning (requires SerpAPI)
+- `search_market_trends` - Identify industry trends and emerging patterns (requires SerpAPI)
+- `compare_with_competitors` - Structured gap analysis (us vs competitors)
+- `summarize_competitive_move` - Translate competitor actions into strategic implications
+- `identify_threat_level` - Classify moves as ignore, monitor, or act
+- `extract_best_practices` - Surface validated patterns from similar products and industries
+
+**Example prompt:**
+> "Our main competitor just launched an AI onboarding flow — is this a strategic threat?"
+
+---
+
 ### 🔍 Framer
-**Purpose:** Root cause analysis using 5 Whys technique
+**Purpose:** Structured problem diagnosis using causal reasoning, 5 Whys, and knowledge base retrieval
 
 **Tools:**
 - `log_why` - Document each Why in the analysis chain
@@ -115,21 +131,6 @@ Set these via `.env` file or `export` in your shell.
 
 **Example prompt:**
 > "Should we prioritize AI features or enterprise security?"
-
----
-### 🔎 Scout
-**Purpose:** Competitive intelligence and market context analysis to inform product strategy and avoid reactive feature copying
-
-**Tools:**
-- `search_competitors` - Analyze competitor features, launches, and positioning (requires SerpAPI)
-- `search_market_trends` - Identify industry trends and emerging patterns (requires SerpAPI)
-- `compare_with_competitors` - Structured gap analysis (us vs competitors)
-- `summarize_competitive_move` - Translate competitor actions into strategic implications
-- `identify_threat_level` - Classify moves as ignore, monitor, or act
-- `extract_best_practices` - Surface validated patterns from similar products and industries
-
-**Example prompt:**
-> "Our main competitor just launched an AI onboarding flow — is this a strategic threat?"
 
 ---
 
@@ -254,6 +255,11 @@ pm_os/
 │   • Clear recommendation                                     │
 │   • Decision logged to memory                                │
 └─────────────────────────────────────────────────────────────┘
+```
+Note: Agents can chain sequentially based on structured outputs 
+(e.g., Framer → Strategist → Aligner → Executor → Narrator) 
+with state updates persisted across the session.
+
 ```
 ## Example Execution Trace
 
