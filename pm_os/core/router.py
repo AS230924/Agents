@@ -43,6 +43,37 @@ def _get_retriever():
     return _retriever
 
 
+def _maybe_advance_state(session_id: str, sequence: list[str]):
+    """
+    Optimistically advance session state based on which agents are planned.
+
+    Used by route() (the fast path) which doesn't execute agents.
+    Maps agent presence in the sequence to state transitions:
+      - Framer in sequence  -> problem_state = "framed"
+      - Strategist in sequence -> decision_state = "open"
+      - Executor in sequence   -> decision_state = "decided"
+    """
+    if not sequence:
+        return
+
+    problem_state = None
+    decision_state = None
+
+    if "Framer" in sequence:
+        problem_state = "framed"
+    if "Strategist" in sequence:
+        decision_state = "open"
+    if "Executor" in sequence:
+        decision_state = "decided"
+
+    if problem_state or decision_state:
+        update_session_state(
+            session_id,
+            problem_state=problem_state,
+            decision_state=decision_state,
+        )
+
+
 def route(query: str, session_id: str) -> dict:
     """
     Route a user query through classification + enforcement (no agent execution).
