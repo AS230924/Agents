@@ -12,14 +12,16 @@ license: mit
 
 # 🎯 PM OS - Product Manager Operating System
 
-A multi-agent AI assistant for Product Managers, built with Python and Gradio.
+An Agentic Product Decision Operating System that uses Context Engineering, RAG (Graph + Vector Retrieval), and State-Machine-Governed Multi-Agent Orchestration to convert ambiguous product problems into structured decisions and execution plans.
+It automatically routes your questions to specialized agents, each with their own tools and expertise. Just describe what you need help with, and the right agent handles it.
 
-PM OS automatically routes your questions to specialized agents, each with their own tools and expertise. Just describe what you need help with, and the right agent handles it.
+
 
 ## Features
 
 - **6 Specialized Agents** - Each with domain-specific tools
 - **Automatic Routing** - Intent classification selects the right agent
+- **State Machine Governance** - Enforces problem → decision → execution progression to prevent premature solutioning
 - **Tool Use** - Agents use structured tools for consistent outputs
 - **Decision Logging** - Automatic capture of key decisions
 - **Knowledge Base** - Graph + vector retrieval for domain context
@@ -84,8 +86,24 @@ Set these via `.env` file or `export` in your shell.
 
 ## The 6 Agents
 
+### 🔎 Scout
+**Purpose:** Competitive intelligence and market context analysis to inform product strategy and avoid reactive feature copying
+
+**Tools:**
+- `search_competitors` - Analyze competitor features, launches, and positioning (requires SerpAPI)
+- `search_market_trends` - Identify industry trends and emerging patterns (requires SerpAPI)
+- `compare_with_competitors` - Structured gap analysis (us vs competitors)
+- `summarize_competitive_move` - Translate competitor actions into strategic implications
+- `identify_threat_level` - Classify moves as ignore, monitor, or act
+- `extract_best_practices` - Surface validated patterns from similar products and industries
+
+**Example prompt:**
+> "Our main competitor just launched an AI onboarding flow — is this a strategic threat?"
+
+---
+
 ### 🔍 Framer
-**Purpose:** Root cause analysis using 5 Whys technique
+**Purpose:** Structured problem diagnosis using causal reasoning, 5 Whys, and knowledge base retrieval
 
 **Tools:**
 - `log_why` - Document each Why in the analysis chain
@@ -158,24 +176,6 @@ Set these via `.env` file or `export` in your shell.
 
 **Example prompt:**
 > "Summarize this project update for my exec team"
-
----
-
-### 📄 Doc Engine
-**Purpose:** PRD and specification document generation
-
-**Tools:**
-- `set_document_metadata` - Title, author, date
-- `define_problem` - Problem statement
-- `add_goal` - Product goals
-- `add_user_story` - User stories
-- `add_requirement` - Functional requirements
-- `define_scope` - In/out of scope
-- `add_timeline_phase` - Timeline phases
-- `add_open_question` - Questions to resolve
-
-**Example prompt:**
-> "Write a PRD for a new onboarding flow"
 
 ---
 
@@ -256,6 +256,9 @@ pm_os/
 │   • Decision logged to memory                                │
 └─────────────────────────────────────────────────────────────┘
 ```
+Note: Agents can chain sequentially based on structured outputs 
+(e.g., Framer → Strategist → Aligner → Executor → Narrator) 
+with state updates persisted across the session.
 
 ---
 

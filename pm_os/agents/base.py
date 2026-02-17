@@ -9,6 +9,7 @@ Each concrete agent defines:
 The base class handles:
   - Two-stage context injection (broad + deep)
   - LLM call (xAI Grok primary, Anthropic Haiku fallback)
+  - LLM call via Anthropic
   - Structured output parsing
   - State update extraction
 """
@@ -19,6 +20,10 @@ from abc import ABC, abstractmethod
 
 from pm_os.config.agent_kb import get_agent_kb
 from pm_os.core.llm_client import call_llm
+import os
+from abc import ABC, abstractmethod
+
+from pm_os.config.agent_kb import get_agent_kb
 from pm_os.kb.retriever import KBRetriever
 from pm_os.kb.schemas import AGENT_KB_ACCESS
 
@@ -29,6 +34,19 @@ class BaseAgent(ABC):
     """Base class for all PM OS agents."""
 
     name: str = ""
+    max_tokens: int = 2048
+    temperature: float = 0.3
+
+    @abstractmethod
+    def system_prompt(self, kb_context: str) -> str:
+        """Return the full system prompt, with KB context injected."""
+
+    @abstractmethod
+    def parse_output(self, raw: str) -> dict:
+        """Parse the LLM response into the agent's structured output."""
+
+    name: str = ""
+    model: str = "claude-sonnet-4-5-20250929"
     max_tokens: int = 2048
     temperature: float = 0.3
 

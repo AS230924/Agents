@@ -69,6 +69,20 @@ def classify(enriched_query: dict) -> dict:
             "reasoning": "Empty query — defaulting to Framer for clarification.",
         }
 
+    provider = os.environ.get("LLM_PROVIDER", "anthropic").lower()
+
+    if provider == "openrouter":
+        api_key = os.environ.get("OPENROUTER_API_KEY", "")
+        client = anthropic.Anthropic(
+            api_key=api_key,
+            base_url="https://openrouter.ai/api/v1",
+        )
+        model = "anthropic/claude-sonnet-4"
+    else:
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        client = anthropic.Anthropic(api_key=api_key)
+        model = "claude-sonnet-4-20250514"
+
     # Extract enriched context fields (with safe defaults for eval mode)
     ctx = enriched_query.get("context", {})
     problem_state = enriched_query.get("problem_state", "undefined")
