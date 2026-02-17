@@ -8,6 +8,7 @@ Collections:
   competitive_intel — competitor moves, market data
 """
 
+import os
 from pathlib import Path
 
 import chromadb
@@ -16,6 +17,11 @@ from chromadb.config import Settings
 from pm_os.kb.schemas import KBDocument, VectorCollection
 
 _DEFAULT_PERSIST = Path(__file__).resolve().parent / "chroma_data"
+
+# Pin the ONNX model cache inside the project so ChromaDB doesn't
+# re-download the ~79 MB embedding model on every cold start.
+_MODEL_CACHE = _DEFAULT_PERSIST / "onnx_cache"
+os.environ.setdefault("CHROMA_ONNX_MODEL_CACHE", str(_MODEL_CACHE))
 
 
 class VectorStore:
@@ -29,12 +35,19 @@ class VectorStore:
         )
         self._collections: dict[str, chromadb.Collection] = {}
 
+        # Resolve the embedding function once so the ONNX model is
+        # loaded a single time and shared across all collections.
+        from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+
+        self._embedding_fn = DefaultEmbeddingFunction()
+
     def _get_collection(self, name: VectorCollection) -> chromadb.Collection:
         key = name.value
         if key not in self._collections:
             self._collections[key] = self.client.get_or_create_collection(
                 name=key,
                 metadata={"hnsw:space": "cosine"},
+                embedding_function=self._embedding_fn,
             )
         return self._collections[key]
 

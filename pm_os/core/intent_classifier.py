@@ -1,16 +1,14 @@
 """
 LLM-based intent classifier for the E-commerce PM OS Router.
-Uses Claude to determine which agent the user is asking for.
+Uses xAI Grok (primary) with Anthropic Haiku fallback.
 """
 
 import json
-import os
 import re
-
-import anthropic
 
 from pm_os.config.agents import AGENTS, VALID_INTENTS
 from pm_os.config.agent_kb import AGENT_KB, build_classifier_kb_block
+from pm_os.core.llm_client import call_llm
 
 # Build the KB section once at import time
 _KB_BLOCK = build_classifier_kb_block()
@@ -109,13 +107,11 @@ def classify(enriched_query: dict) -> dict:
         prior_turns=prior_summary,
     )
 
-    response = client.messages.create(
-        model=model,
-        max_tokens=256,
+    raw = call_llm(
         messages=[{"role": "user", "content": prompt}],
-    )
-
-    raw = response.content[0].text.strip()
+        max_tokens=256,
+        caller="intent_classifier",
+    ).strip()
     parsed = _parse_response(raw)
     return parsed
 

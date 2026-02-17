@@ -260,30 +260,6 @@ Note: Agents can chain sequentially based on structured outputs
 (e.g., Framer → Strategist → Aligner → Executor → Narrator) 
 with state updates persisted across the session.
 
-```
-## Example Execution Trace
-
-Input:
-"Conversion dropped from 3.2% to 2.8%"
-
-Router:
-→ Intent: Problem Diagnosis (confidence: 0.91)
-→ Selected Agent: Framer
-
-Context Builder:
-- Retrieved historical conversion metrics
-- Vector search: checkout friction patterns
-- Graph traversal: cart_abandonment → conversion_rate → GMV
-
-Framer Output (Structured JSON):
-- Problem: Mobile checkout friction increasing abandonment
-- Impact: ~12% GMV risk
-- Hypotheses: UX latency, payment failures, mobile UX gaps
-- Next Agent: Strategist
-
-State Transition:
-problem_state: undefined → framed
-
 ---
 
 ## Google Docs/Sheets Export

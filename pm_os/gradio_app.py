@@ -10,6 +10,7 @@ import os
 
 import gradio as gr
 
+from pm_os.core.observability import init_phoenix
 from pm_os.core.router import route
 from pm_os.store.state_store import create_session, init_db
 
@@ -76,6 +77,9 @@ def chat(message: str, history: list, session_id: str) -> tuple[str, str]:
 
 
 def launch():
+    # Start Phoenix observability (auto-instruments OpenAI + Anthropic SDKs)
+    init_phoenix()
+
     with gr.Blocks(title="E-commerce PM OS Router") as demo:
         gr.Markdown("# E-commerce PM OS Router")
         gr.Markdown("Enter an e-commerce PM query to see how it gets classified and routed.")
