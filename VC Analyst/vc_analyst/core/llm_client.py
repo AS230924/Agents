@@ -14,7 +14,7 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 # xAI Grok model to use
-GROK_MODEL = os.getenv("GROK_MODEL", "grok-3-fast")
+GROK_MODEL = os.getenv("GROK_MODEL", "grok-4-1-fast-reasoning")
 GROK_BASE_URL = "https://api.x.ai/v1"
 
 # Anthropic fallback model
@@ -75,7 +75,6 @@ class LLMClient:
                 {"role": "user", "content": user_message},
             ],
             max_tokens=max_tokens,
-            temperature=0.2,
         )
         return response.choices[0].message.content or ""
 
