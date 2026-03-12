@@ -13,6 +13,7 @@ load_dotenv()
 import gradio as gr
 
 from .core.pipeline import analyze_multiple, format_analysis, format_comparison_table
+from .core.tracer import init_phoenix, phoenix_enabled, get_phoenix_url
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,11 @@ def _browser_research_enabled() -> bool:
     return os.getenv("USE_BROWSER_RESEARCH", "0").strip().lower() in ("1", "true", "yes")
 
 BROWSER_RESEARCH_ON = _browser_research_enabled()
+PHOENIX_ON = phoenix_enabled()
+
+# Start Phoenix tracing if enabled (must run before any LLM calls)
+if PHOENIX_ON:
+    init_phoenix()
 
 # ─── Example Inputs ───────────────────────────────────────────────────────────
 
@@ -71,6 +77,19 @@ CUSTOM_CSS = """
     text-align: center;
     letter-spacing: 0.02em;
 }
+.phoenix-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #7c3aed, #a855f7);
+    color: white !important;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.8em;
+    font-weight: 600;
+    text-align: center;
+    letter-spacing: 0.02em;
+    box-shadow: 0 1px 4px rgba(168,85,247,0.4);
+}
+.phoenix-badge a { color: white !important; text-decoration: none; }
 """
 
 # ─── Core Analysis Function ───────────────────────────────────────────────────
@@ -203,6 +222,14 @@ _Enter one URL or description per line to analyze and compare multiple startups.
                         elem_id="browser-badge",
                     )
 
+                # ── Phoenix Tracing Badge ───────────────────────────────
+                if PHOENIX_ON:
+                    _phoenix_url = get_phoenix_url() or "http://localhost:6006"
+                    gr.Markdown(
+                        f'<div class="phoenix-badge">🔥 <a href="{_phoenix_url}" target="_blank">Phoenix Traces: ON</a></div>',
+                        elem_id="phoenix-badge",
+                    )
+
                 gr.Markdown("**Examples:**")
                 gr.Examples(
                     examples=EXAMPLES,
@@ -269,6 +296,14 @@ pip install playwright duckduckgo-search
 playwright install chromium
 # Then set in .env:
 USE_BROWSER_RESEARCH=1
+```
+
+**Phoenix Observability (optional — trace every LLM call):**
+```bash
+pip install arize-phoenix openinference-instrumentation-openai openinference-instrumentation-anthropic opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
+# Then set in .env:
+PHOENIX_ENABLED=1
+# Phoenix UI → http://localhost:6006
 ```
 """)
 
