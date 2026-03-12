@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 
 from ..core.pipeline import analyze_startup
 from ..core.llm_client import LLMClient
+from ..core.tracer import get_tracer
 from ..models.schemas import StartupAnalysis
 from .evaluators import (
     DeterministicResult,
@@ -105,6 +106,8 @@ def run_evals(
     _log(f"  VC ANALYST EVALUATION — {len(cases)} cases", verbose)
     _log(f"{'='*60}\n", verbose)
 
+    tracer = get_tracer()
+
     for i, case in enumerate(cases):
         case_id = case["id"]
         _log(f"[{i+1}/{len(cases)}] Running {case_id} ({case['category']}, {case['difficulty']})…", verbose)
@@ -113,36 +116,60 @@ def run_evals(
         analysis: StartupAnalysis | None = None
         error_msg = ""
 
-        # Run pipeline
-        try:
-            analysis = analyze_startup(
-                case["input"],
-                llm_client=client,
-                progress_callback=lambda msg: _log(f"       {msg}", verbose),
-            )
-        except Exception as e:
-            error_msg = str(e)
-            logger.error(f"Pipeline failed for {case_id}: {e}")
-            if verbose:
-                traceback.print_exc()
+        with tracer.start_as_current_span("eval_case") as span:
+            span.set_attribute("case.id", case_id)
+            span.set_attribute("case.category", case.get("category", ""))
+            span.set_attribute("case.difficulty", case.get("difficulty", ""))
+            span.set_attribute("case.test_type", case.get("test_type", ""))
+            span.set_attribute("case.input_type", case.get("input_type", ""))
 
-        duration = round(time.time() - start, 2)
-
-        # Deterministic evaluation
-        det_result = build_deterministic_result(case, analysis, error=error_msg)
-
-        # Hallucination check
-        hallucination_ok, hal_issues = (
-            eval_no_hallucination(analysis) if analysis else (False, ["Pipeline failed"])
-        )
-
-        # Quality evaluation (LLM-as-Judge)
-        quality: QualityReport | None = None
-        if run_quality and analysis and judge:
+            # Run pipeline
             try:
-                quality = judge.evaluate(analysis)
+                analysis = analyze_startup(
+                    case["input"],
+                    llm_client=client,
+                    progress_callback=lambda msg: _log(f"       {msg}", verbose),
+                )
             except Exception as e:
-                logger.error(f"Quality eval failed for {case_id}: {e}")
+                error_msg = str(e)
+                logger.error(f"Pipeline failed for {case_id}: {e}")
+                span.set_attribute("pipeline.error", error_msg)
+                if verbose:
+                    traceback.print_exc()
+
+            duration = round(time.time() - start, 2)
+
+            # Deterministic evaluation
+            det_result = build_deterministic_result(case, analysis, error=error_msg)
+
+            # Hallucination check
+            hallucination_ok, hal_issues = (
+                eval_no_hallucination(analysis) if analysis else (False, ["Pipeline failed"])
+            )
+
+            # Quality evaluation (LLM-as-Judge)
+            quality: QualityReport | None = None
+            if run_quality and analysis and judge:
+                try:
+                    quality = judge.evaluate(analysis)
+                except Exception as e:
+                    logger.error(f"Quality eval failed for {case_id}: {e}")
+
+            # Record eval results as span attributes
+            span.set_attribute("eval.layer_correct", det_result.layer_correct)
+            span.set_attribute("eval.wrapper_correct", det_result.wrapper_correct)
+            span.set_attribute("eval.score_in_range", det_result.score_in_range)
+            span.set_attribute("eval.verdict_correct", det_result.verdict_correct)
+            span.set_attribute("eval.hallucination_pass", hallucination_ok)
+            span.set_attribute("eval.overall_pass", det_result.overall_pass)
+            span.set_attribute("eval.duration_seconds", duration)
+            if analysis:
+                span.set_attribute("result.final_score", analysis.scoring.final_score)
+                span.set_attribute("result.verdict", analysis.verdict.verdict)
+                span.set_attribute("result.layer", analysis.stack_layer.layer)
+            if quality:
+                span.set_attribute("eval.quality_score", quality.average_score)
+                span.set_attribute("eval.quality_pass", quality.overall_pass)
 
         # Log quick result
         status = "✅" if det_result.overall_pass else "❌"

@@ -10,6 +10,7 @@ import logging
 from typing import Callable
 
 from .llm_client import LLMClient
+from .tracer import get_tracer
 from ..agents import (
     ResearcherAgent,
     ClassifierAgent,
@@ -55,86 +56,104 @@ def analyze_startup(
 
     client = llm_client or LLMClient()
     label = input_text.strip()[:50]
+    tracer = get_tracer()
 
-    # Step 1: Research (basic httpx scraper OR browser + web search)
-    if _use_browser_research():
-        from ..agents.browser_researcher import BrowserResearchAgent
-        researcher = BrowserResearchAgent(client)
-        caps = researcher.capabilities
-        _progress(f"🌐 Browser Research ({caps['mode']}) — Researching {label}…")
-    else:
-        researcher = ResearcherAgent(client)
-        _progress(f"🔍 Researching {label}…")
-    research = researcher.run(input_text)
+    with tracer.start_as_current_span("startup_analysis") as root_span:
+        root_span.set_attribute("input", label)
+        root_span.set_attribute("browser_research", _use_browser_research())
 
-    # Step 2: AI Stack Layer Classification
-    _progress(f"🏗️  Classifying AI stack layer for {research.name}…")
-    classifier = ClassifierAgent(client)
-    layer = classifier.run(research)
+        # Step 1: Research (basic httpx scraper OR browser + web search)
+        with tracer.start_as_current_span("step.research"):
+            if _use_browser_research():
+                from ..agents.browser_researcher import BrowserResearchAgent
+                researcher = BrowserResearchAgent(client)
+                caps = researcher.capabilities
+                _progress(f"🌐 Browser Research ({caps['mode']}) — Researching {label}…")
+            else:
+                researcher = ResearcherAgent(client)
+                _progress(f"🔍 Researching {label}…")
+            research = researcher.run(input_text)
+            root_span.set_attribute("startup.name", research.name)
 
-    # Step 3: 12-Point Evaluation
-    _progress(f"📊 Running 12-point evaluation for {research.name}…")
-    evaluator = EvaluatorAgent(client)
-    evaluation = evaluator.run(research, layer)
+        # Step 2: AI Stack Layer Classification
+        with tracer.start_as_current_span("step.classify"):
+            _progress(f"🏗️  Classifying AI stack layer for {research.name}…")
+            classifier = ClassifierAgent(client)
+            layer = classifier.run(research)
 
-    # Step 4: Wrapper Risk Detection
-    _progress(f"🛡️  Detecting AI wrapper risk for {research.name}…")
-    wrapper_detector = WrapperDetectorAgent(client)
-    wrapper = wrapper_detector.run(research, evaluation)
+        # Step 3: 12-Point Evaluation
+        with tracer.start_as_current_span("step.evaluate"):
+            _progress(f"📊 Running 12-point evaluation for {research.name}…")
+            evaluator = EvaluatorAgent(client)
+            evaluation = evaluator.run(research, layer)
 
-    # Step 5: Signal Scoring (no LLM)
-    _progress(f"🧮 Calculating final score for {research.name}…")
-    scorer = ScorerAgent(client)
-    score = scorer.run(evaluation, layer, wrapper)
+        # Step 4: Wrapper Risk Detection
+        with tracer.start_as_current_span("step.wrapper_detect"):
+            _progress(f"🛡️  Detecting AI wrapper risk for {research.name}…")
+            wrapper_detector = WrapperDetectorAgent(client)
+            wrapper = wrapper_detector.run(research, evaluation)
 
-    # Step 6: Investment Verdict
-    _progress(f"⚖️  Generating investment verdict for {research.name}…")
-    verdict_agent = VerdictAgent(client)
-    verdict = verdict_agent.run(score, research, evaluation, layer, wrapper)
+        # Step 5: Signal Scoring (no LLM)
+        with tracer.start_as_current_span("step.score"):
+            _progress(f"🧮 Calculating final score for {research.name}…")
+            scorer = ScorerAgent(client)
+            score = scorer.run(evaluation, layer, wrapper)
 
-    # Assemble partial analysis for nuance enrichment
-    partial = StartupAnalysis(
-        startup=research.name,
-        website=research.website,
-        summary=research.summary,
-        stage_estimate=research.stage_estimate,
-        stack_layer=layer,
-        evaluation=evaluation,
-        wrapper_risk=wrapper,
-        scoring=score,
-        verdict=verdict,
-        nuance=None,
-    )
+        # Step 6: Investment Verdict
+        with tracer.start_as_current_span("step.verdict"):
+            _progress(f"⚖️  Generating investment verdict for {research.name}…")
+            verdict_agent = VerdictAgent(client)
+            verdict = verdict_agent.run(score, research, evaluation, layer, wrapper)
 
-    # Step 7: Nuance Enrichment (TAM, risks, moat, memo)
-    _progress(f"🔬 Running deep-dive analysis for {research.name}…")
-    nuance_agent = NuanceAgent(client)
-    # Inject traction data we already have
-    nuance_report = nuance_agent.run(partial)
+        # Assemble partial analysis for nuance enrichment
+        partial = StartupAnalysis(
+            startup=research.name,
+            website=research.website,
+            summary=research.summary,
+            stage_estimate=research.stage_estimate,
+            stack_layer=layer,
+            evaluation=evaluation,
+            wrapper_risk=wrapper,
+            scoring=score,
+            verdict=verdict,
+            nuance=None,
+        )
 
-    # Fix traction_summary using the researcher output
-    from ..models.schemas import NuanceReport
-    nuance_report = NuanceReport(
-        tam_estimate=nuance_report.tam_estimate,
-        traction_summary=research.traction_signals,
-        top_risks=nuance_report.top_risks,
-        moat_analysis=nuance_report.moat_analysis,
-        competitive_landscape=nuance_report.competitive_landscape,
-        investment_memo=nuance_report.investment_memo,
-    )
+        # Step 7: Nuance Enrichment (TAM, risks, moat, memo)
+        with tracer.start_as_current_span("step.nuance"):
+            _progress(f"🔬 Running deep-dive analysis for {research.name}…")
+            nuance_agent = NuanceAgent(client)
+            nuance_report = nuance_agent.run(partial)
 
-    return StartupAnalysis(
-        startup=research.name,
-        website=research.website,
-        summary=research.summary,
-        stage_estimate=research.stage_estimate,
-        stack_layer=layer,
-        evaluation=evaluation,
-        wrapper_risk=wrapper,
-        scoring=score,
-        verdict=verdict,
-        nuance=nuance_report,
-    )
+        # Fix traction_summary using the researcher output
+        from ..models.schemas import NuanceReport
+        nuance_report = NuanceReport(
+            tam_estimate=nuance_report.tam_estimate,
+            traction_summary=research.traction_signals,
+            top_risks=nuance_report.top_risks,
+            moat_analysis=nuance_report.moat_analysis,
+            competitive_landscape=nuance_report.competitive_landscape,
+            investment_memo=nuance_report.investment_memo,
+        )
+
+        # Record final result attributes on root span
+        root_span.set_attribute("result.final_score", score.final_score)
+        root_span.set_attribute("result.verdict", verdict.verdict)
+        root_span.set_attribute("result.layer", layer.layer)
+        root_span.set_attribute("result.wrapper_risk", wrapper.risk_level)
+
+        return StartupAnalysis(
+            startup=research.name,
+            website=research.website,
+            summary=research.summary,
+            stage_estimate=research.stage_estimate,
+            stack_layer=layer,
+            evaluation=evaluation,
+            wrapper_risk=wrapper,
+            scoring=score,
+            verdict=verdict,
+            nuance=nuance_report,
+        )
 
 
 def analyze_multiple(
