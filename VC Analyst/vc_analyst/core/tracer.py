@@ -5,6 +5,7 @@ UI available at http://localhost:6006 when running locally.
 """
 from __future__ import annotations
 import os
+import time
 import logging
 
 logger = logging.getLogger(__name__)
@@ -26,17 +27,18 @@ def init_phoenix() -> None:
         from openinference.instrumentation.anthropic import AnthropicInstrumentor
         from opentelemetry import trace
         from opentelemetry.sdk.trace import TracerProvider
-        from opentelemetry.sdk.trace.export import SimpleSpanProcessor
         from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
         global _phoenix_session
         _phoenix_session = px.launch_app()          # starts http://localhost:6006
+        time.sleep(2)                               # wait for Phoenix HTTP server to be ready
         endpoint = _phoenix_session.url + "/v1/traces"
 
-        # Wire OTel → Phoenix OTLP exporter
+        # Wire OTel → Phoenix OTLP exporter (BatchSpanProcessor is async — won't block)
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
         provider = TracerProvider()
         provider.add_span_processor(
-            SimpleSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
+            BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
         )
         trace.set_tracer_provider(provider)
 
