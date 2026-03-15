@@ -24,6 +24,11 @@ def _browser_research_enabled() -> bool:
     return os.getenv("USE_BROWSER_RESEARCH", "0").strip().lower() in ("1", "true", "yes")
 
 BROWSER_RESEARCH_ON = _browser_research_enabled()
+PHOENIX_ON = phoenix_enabled()
+
+# Start Phoenix tracing if enabled (must run before any LLM calls)
+if PHOENIX_ON:
+    init_phoenix()
 
 # ─── Example Inputs ───────────────────────────────────────────────────────────
 
