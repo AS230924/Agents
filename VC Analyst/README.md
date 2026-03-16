@@ -1,4 +1,17 @@
+---
+title: VC Analyst
+emoji: 📊
+colorFrom: blue
+colorTo: indigo
+sdk: gradio
+sdk_version: "4.44.0"
+app_file: app.py
+pinned: false
+license: mit
+---
+
 # 🔍 VC Analyst
+
 
 ### AI-powered startup evaluation at venture scale
 
