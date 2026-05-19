@@ -12,7 +12,13 @@ load_dotenv()
 
 import gradio as gr
 
-from .core.pipeline import analyze_multiple, format_analysis, format_comparison_table
+from .core.pipeline import (
+    analyze_multiple,
+    analyze_multiple_deep,
+    format_analysis,
+    format_comparison_table,
+    format_ic_decision,
+)
 from .core.tracer import phoenix_enabled, get_phoenix_url
 
 logger = logging.getLogger(__name__)
@@ -44,13 +50,14 @@ EXAMPLES = [
 # ─── CSS ──────────────────────────────────────────────────────────────────────
 
 CUSTOM_CSS = """
-.gradio-container { max-width: 960px !important; margin: auto; padding: 0 16px; }
+.gradio-container { max-width: 1080px !important; margin: auto; padding: 0 16px; }
 .verdict-strong   { color: #16a34a; font-weight: 800; font-size: 1.4em; }
 .verdict-watch    { color: #2563eb; font-weight: 700; font-size: 1.2em; }
 .verdict-weak     { color: #d97706; font-weight: 700; }
 .verdict-ignore   { color: #dc2626; font-weight: 700; }
 #status-bar       { font-family: monospace; font-size: 0.82em; }
-#analyze-btn      { width: 100% !important; margin-top: 8px; }
+#analyze-btn      { width: 100% !important; margin-top: 8px; min-height: 48px; }
+.panel-card       { border: 1px solid rgba(148,163,184,0.35); border-radius: 12px; padding: 14px; background: rgba(248,250,252,0.55); }
 .footer-text      { text-align: center; font-size: 0.8em; color: #9ca3af;
                     margin-top: 24px; padding-top: 16px;
                     border-top: 1px solid rgba(156,163,175,0.3); }
@@ -106,16 +113,17 @@ def _format_verdict_tab(analyses) -> str:
 
 # ─── Core Analysis Function ───────────────────────────────────────────────────
 
-def run_analysis(input_text: str, progress=gr.Progress(track_tqdm=False)):
+def run_analysis(input_text: str, deep_mode: bool = False, progress=gr.Progress(track_tqdm=False)):
     """
     Main function called by the Gradio UI.
-    Returns (verdict_output, full_analysis_markdown, comparison_table_markdown, status).
+    Returns (verdict_output, full_analysis_markdown, comparison_table_markdown, ic_output, status).
     """
     if not input_text or not input_text.strip():
         return (
             "⚠️ Please enter one or more startup URLs or descriptions.",
             "",
             "",
+            "_Enable **🔬 Deep Mode** above and run an analysis to see the IC decision._",
             "Ready",
         )
 
@@ -134,35 +142,43 @@ def run_analysis(input_text: str, progress=gr.Progress(track_tqdm=False)):
 
     try:
         progress_cb(f"🚀 Starting analysis of {len(inputs)} startup(s)…")
-        analyses = analyze_multiple(inputs, progress_callback=progress_cb)
+        analyses = analyze_multiple_deep(inputs, progress_callback=progress_cb) if deep_mode else analyze_multiple(inputs, progress_callback=progress_cb)
 
         if not analyses:
             return (
                 "❌ No startups could be analyzed. Check your input and API keys.",
                 "",
                 "",
+                "_Enable **🔬 Deep Mode** above and run an analysis to see the IC decision._",
                 "Analysis failed",
             )
 
         # Tab 1 — Verdict score-cards
-        verdict_output = _format_verdict_tab(analyses)
+        base_analyses = [a.base for a in analyses] if deep_mode else analyses
+        verdict_output = _format_verdict_tab(base_analyses)
 
         # Tab 2 — Full deep-dive (existing formatter, unchanged)
-        individual_sections = [format_analysis(a) for a in analyses]
+        individual_sections = [format_analysis(a.base) for a in analyses] if deep_mode else [format_analysis(a) for a in analyses]
         full_output = "\n\n".join(individual_sections)
 
         # Tab 3 — Comparison table (meaningful only for 2+ startups)
-        if len(analyses) > 1:
-            comparison_output = format_comparison_table(analyses)
+        if len(base_analyses) > 1:
+            comparison_output = format_comparison_table(base_analyses)
         else:
             comparison_output = "_Enter multiple startups (one per line) to see a ranked comparison._"
 
-        final_status = (
-            f"✅ Analysis complete — {len(analyses)} startup(s) evaluated. "
-            f"Top pick: **{analyses[0].startup}** (Score: {analyses[0].scoring.final_score})"
+        ic_output = (
+            "\n\n---\n\n".join(format_ic_decision(a) for a in analyses)
+            if deep_mode
+            else "_Enable **🔬 Deep Mode** above and run an analysis to see the IC decision._"
         )
 
-        return verdict_output, full_output, comparison_output, final_status
+        final_status = (
+            f"✅ Analysis complete — {len(base_analyses)} startup(s) evaluated. "
+            f"Top pick: **{base_analyses[0].startup}** (Score: {base_analyses[0].scoring.final_score})"
+        )
+
+        return verdict_output, full_output, comparison_output, ic_output, final_status
 
     except EnvironmentError as e:
         err_msg = (
@@ -170,10 +186,10 @@ def run_analysis(input_text: str, progress=gr.Progress(track_tqdm=False)):
             "Please set `XAI_API_KEY` (or `ANTHROPIC_API_KEY` as fallback) "
             "in your `.env` file or environment variables."
         )
-        return err_msg, "", "", "Configuration error"
+        return err_msg, "", "", "", "Configuration error"
     except Exception as e:
         logger.exception("Unexpected error during analysis")
-        return f"❌ **Error:** {e}", "", "", f"Error: {e}"
+        return f"❌ **Error:** {e}", "", "", "", f"Error: {e}"
 
 
 # ─── Gradio UI ────────────────────────────────────────────────────────────────
@@ -197,26 +213,57 @@ Built by [Deep Kumar](https://github.com/AS230924) &nbsp;·&nbsp;
 """
         )
 
-        # ── Input — full width ──────────────────────────────────────────────
-        input_box = gr.Textbox(
-            label="Startup URL(s) or Description(s)",
-            placeholder=(
-                "Enter one startup per line. Examples:\n"
-                "https://portkey.ai\n"
-                "https://safedep.io\n\n"
-                "Or paste a one-paragraph pitch description."
-            ),
-            lines=6,
-            max_lines=20,
-            elem_id="input-box",
-        )
-        analyze_btn = gr.Button(
-            "🔍 Analyze",
-            variant="primary",
-            size="lg",
-            elem_id="analyze-btn",
-        )
-        gr.Examples(examples=EXAMPLES, inputs=input_box, label="Try an example")
+        # ── Input & Framework Sidebar ───────────────────────────────────────
+        with gr.Row(equal_height=True):
+            with gr.Column(scale=7):
+                with gr.Group(elem_classes=["panel-card"]):
+                    input_box = gr.Textbox(
+                        label="Startup URL(s) or Description(s)",
+                        placeholder=(
+                            "Enter one startup per line. Examples:\n"
+                            "https://portkey.ai\n"
+                            "https://safedep.io\n\n"
+                            "Or paste a one-paragraph pitch description."
+                        ),
+                        lines=7,
+                        max_lines=20,
+                        elem_id="input-box",
+                    )
+                    analyze_btn = gr.Button(
+                        "🔍 Analyze Startups",
+                        variant="primary",
+                        size="lg",
+                        elem_id="analyze-btn",
+                    )
+                    deep_mode = gr.Checkbox(
+                        label="🔬 Deep Mode",
+                        value=False,
+                        info="Runs sector classification first, then research + IC memo (~90s)",
+                    )
+                    gr.Examples(examples=EXAMPLES, inputs=input_box, label="Try an example")
+
+            with gr.Column(scale=3):
+                with gr.Group(elem_classes=["panel-card"]):
+                    gr.Markdown(
+                        "### Framework\n"
+                        "- Base mode: 12-point score + verdict\n"
+                        "- Deep mode: sector-first diligence + IC decision"
+                    )
+                    gr.Markdown(
+                        "### Criteria\n"
+                        "1. Market Size\n"
+                        "2. Market Growth\n"
+                        "3. Problem Severity\n"
+                        "4. Clear Wedge\n"
+                        "5. Unique Insight\n"
+                        "6. Data Moat\n"
+                        "7. Workflow Lock-in\n"
+                        "8. Distribution Advantage\n"
+                        "9. Network Effects\n"
+                        "10. Platform Potential\n"
+                        "11. Competition Intensity\n"
+                        "12. Founder Advantage"
+                    )
 
         # ── Status Bar ─────────────────────────────────────────────────────
         status_bar = gr.Textbox(
@@ -243,6 +290,11 @@ Built by [Deep Kumar](https://github.com/AS230924) &nbsp;·&nbsp;
                 output_comparison = gr.Markdown(
                     value="_Enter multiple startups (one per line) to see a ranked comparison table._",
                     elem_id="output-comparison",
+                )
+            with gr.Tab("🧠 IC Decision"):
+                output_ic = gr.Markdown(
+                    value="_Enable **🔬 Deep Mode** above and run an analysis to see the IC decision._",
+                    elem_id="output-ic",
                 )
 
         # ── How It Works & Setup ────────────────────────────────────────────
@@ -327,15 +379,15 @@ PHOENIX_ENABLED=1                # set in .env → UI at http://localhost:6006
         # ── Event Handlers ─────────────────────────────────────────────────
         analyze_btn.click(
             fn=run_analysis,
-            inputs=[input_box],
-            outputs=[output_verdict, output_analysis, output_comparison, status_bar],
+            inputs=[input_box, deep_mode],
+            outputs=[output_verdict, output_analysis, output_comparison, output_ic, status_bar],
             show_progress=True,
         )
 
         input_box.submit(
             fn=run_analysis,
-            inputs=[input_box],
-            outputs=[output_verdict, output_analysis, output_comparison, status_bar],
+            inputs=[input_box, deep_mode],
+            outputs=[output_verdict, output_analysis, output_comparison, output_ic, status_bar],
             show_progress=True,
         )
 
