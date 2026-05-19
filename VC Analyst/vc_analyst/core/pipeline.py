@@ -19,8 +19,14 @@ from ..agents import (
     ScorerAgent,
     VerdictAgent,
     NuanceAgent,
+    ComparableFinderAgent,
+    CategoryResearcherAgent,
+    VCSignalAgent,
+    FounderFitAgent,
+    PassDecisionAgent,
+    SectorClassifierAgent,
 )
-from ..models.schemas import StartupAnalysis
+from ..models.schemas import StartupAnalysis, DeepStartupAnalysis
 from ..config.frameworks import CRITERIA_LABELS
 
 logger = logging.getLogger(__name__)
@@ -397,3 +403,158 @@ def format_comparison_table(analyses: list[StartupAnalysis]) -> str:
 
     lines += ["", "---", ""]
     return "\n".join(lines)
+
+
+def analyze_startup_deep(
+    input_text: str,
+    progress_callback: Callable[[str], None] | None = None,
+    llm_client: LLMClient | None = None,
+) -> DeepStartupAnalysis:
+    """Run full base analysis + deep evaluation steps 8-12."""
+    def _progress(msg: str) -> None:
+        if progress_callback:
+            progress_callback(msg)
+        logger.info(msg)
+
+    client = llm_client or LLMClient()
+    base = analyze_startup(input_text, progress_callback=progress_callback, llm_client=client)
+
+    _progress(f"🧭 Classifying sector for {base.startup}…")
+    sector_classification = SectorClassifierAgent(client).run(base)
+    _progress(f"🔍 Finding comparable funded companies for {base.startup}…")
+    comparables = ComparableFinderAgent(client).run(base)
+    _progress(f"📚 Researching category dynamics for {base.startup}…")
+    category_insight = CategoryResearcherAgent(client).run(base)
+    _progress(f"💼 Scanning VC landscape for {base.startup}…")
+    vc_landscape = VCSignalAgent(client).run(base, category_insight)
+    _progress(f"👤 Assessing founder & idea-market fit for {base.startup}…")
+    founder_fit = FounderFitAgent(client).run(base)
+
+    deep = DeepStartupAnalysis(
+        base=base,
+        sector_classification=sector_classification,
+        comparables=comparables,
+        category_insight=category_insight,
+        vc_landscape=vc_landscape,
+        founder_fit=founder_fit,
+    )
+    _progress(f"⚖️ Generating IC decision for {base.startup}…")
+    deep.ic_decision = PassDecisionAgent(client).run(deep)
+    return deep
+
+
+def analyze_multiple_deep(
+    inputs: list[str],
+    progress_callback: Callable[[str], None] | None = None,
+) -> list[DeepStartupAnalysis]:
+    """Analyze multiple startups in deep mode and rank by base final score."""
+    client = LLMClient()
+    results: list[DeepStartupAnalysis] = []
+    for i, inp in enumerate(inputs):
+        inp = inp.strip()
+        if not inp:
+            continue
+        def cb(msg: str, idx: int = i + 1, total: int = len(inputs)) -> None:
+            if progress_callback:
+                progress_callback(f"({idx}/{total}) {msg}")
+        try:
+            results.append(analyze_startup_deep(inp, progress_callback=cb, llm_client=client))
+        except Exception as e:
+            logger.error(f"Failed deep analysis for '{inp}': {e}")
+            if progress_callback:
+                progress_callback(f"❌ Deep mode error for '{inp[:40]}': {e}")
+    return sorted(results, key=lambda x: x.base.scoring.final_score, reverse=True)
+
+
+def format_ic_decision(deep: DeepStartupAnalysis) -> str:
+    """Render IC decision output markdown for deep mode."""
+    base = deep.base
+    decision = deep.ic_decision
+    if not decision:
+        return f"## ⚖️ IC Decision: {base.startup}\n\n_No IC decision available._"
+    emoji = {"INVEST": "🚀", "WATCH": "👀", "SOFT PASS": "⚠️", "PASS": "❌"}.get(decision.decision, "❓")
+    comps = deep.comparables.comparables if deep.comparables else []
+    comp_lines = [
+        "| Company | Stage | Funding | Key Investors | Similarity |",
+        "|---------|-------|---------|---------------|------------|",
+    ]
+    for c in comps:
+        comp_lines.append(f"| {c.name} | {c.funding_stage} | {c.funding_amount} | {', '.join(c.key_investors)} | {c.similarity} |")
+    comp_table = "\n".join(comp_lines)
+    vc_lines = ["| Fund | Type | Signal | Implication |", "|------|------|--------|-------------|"]
+    for s in (deep.vc_landscape.signals if deep.vc_landscape else []):
+        vc_lines.append(f"| {s.fund_name} | {s.signal_type} | {s.description} | {s.implication} |")
+    vc_table = "\n".join(vc_lines)
+    category = deep.category_insight
+    founder = deep.founder_fit
+    return f"""## ⚖️ IC Decision: {base.startup}
+
+---
+
+### {emoji} {decision.decision}
+**Confidence: {decision.confidence}**
+
+> {decision.primary_reason}
+
+---
+
+### 📋 Pass Notes
+{chr(10).join(f"- {n}" for n in decision.pass_notes)}
+
+### ✅ Conviction Points
+{chr(10).join(f"- {p}" for p in decision.conviction_points)}
+
+### ❓ Key Questions Before Reconsidering
+{chr(10).join(f"{i+1}. {q}" for i, q in enumerate(decision.key_questions))}
+
+**Follow Up:** {decision.follow_up_action}
+
+---
+
+### 🏢 Comparable Companies
+{comp_table}
+
+> **Market Signal:** {deep.comparables.market_signal if deep.comparables else "N/A"}
+
+---
+
+### 📊 Category Intelligence
+**Sector:** {deep.sector_classification.sector if deep.sector_classification else "N/A"} · **Sub-sector:** {deep.sector_classification.sub_sector if deep.sector_classification else "N/A"}
+**Sector confidence:** {deep.sector_classification.confidence if deep.sector_classification else "N/A"}
+
+**{category.category_name if category else "N/A"}** · Momentum: {category.momentum if category else "N/A"}
+
+**Why VCs care:** {category.why_vcs_care if category else "N/A"}
+
+**What makes winners:** {", ".join(category.key_success_factors) if category else "N/A"}
+
+**Common failure modes:** {", ".join(category.common_failure_modes) if category else "N/A"}
+
+---
+
+### 💼 VC Landscape
+**Tier-1 Interest:** {deep.vc_landscape.tier1_interest if deep.vc_landscape else "Unknown"} · YC Active: {deep.vc_landscape.yc_active if deep.vc_landscape else "Unknown"}
+
+{vc_table}
+
+---
+
+### 👤 Founder & Idea-Market Fit
+| Dimension | Score | Reasoning |
+|-----------|-------|-----------|
+| Founder-Market Fit | {founder.founder_market_fit_score if founder else "N/A"}/5 | {founder.founder_market_fit_reasoning if founder else "N/A"} |
+| Idea-Market Fit | {founder.idea_market_fit_score if founder else "N/A"}/5 | {founder.idea_market_fit_reasoning if founder else "N/A"} |
+
+**Strengths:** {", ".join(founder.key_strengths) if founder else "N/A"}
+**Risks:** {", ".join(founder.key_risks) if founder else "N/A"}
+"""
+
+
+def format_deep_analysis(deep: DeepStartupAnalysis) -> tuple[str, str, str, str]:
+    """Return verdict, full, comparison, and IC outputs for deep mode."""
+    return (
+        format_analysis(deep.base),
+        format_analysis(deep.base),
+        format_comparison_table([deep.base]),
+        format_ic_decision(deep),
+    )
