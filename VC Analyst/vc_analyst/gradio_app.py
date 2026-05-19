@@ -106,7 +106,7 @@ def _format_verdict_tab(analyses) -> str:
 
 # ─── Core Analysis Function ───────────────────────────────────────────────────
 
-def run_analysis(input_text: str, progress=gr.Progress(track_tqdm=False)):
+def run_analysis(input_text: str, deep_mode: bool = False, progress=gr.Progress(track_tqdm=False)):
     """
     Main function called by the Gradio UI.
     Returns (verdict_output, full_analysis_markdown, comparison_table_markdown, status).
@@ -134,7 +134,7 @@ def run_analysis(input_text: str, progress=gr.Progress(track_tqdm=False)):
 
     try:
         progress_cb(f"🚀 Starting analysis of {len(inputs)} startup(s)…")
-        analyses = analyze_multiple(inputs, progress_callback=progress_cb)
+        analyses = analyze_multiple_deep(inputs, progress_callback=progress_cb) if deep_mode else analyze_multiple(inputs, progress_callback=progress_cb)
 
         if not analyses:
             return (
@@ -244,6 +244,27 @@ Built by [Deep Kumar](https://github.com/AS230924) &nbsp;·&nbsp;
                     value="_Enter multiple startups (one per line) to see a ranked comparison table._",
                     elem_id="output-comparison",
                 )
+            with gr.Tab("🧠 IC Decision"):
+                output_ic = gr.Markdown(
+                    value="_Enable **🔬 Deep Mode** above and run an analysis to see the IC decision._",
+                    elem_id="output-ic",
+                )
+
+        # ── How It Works & Setup ────────────────────────────────────────────
+        with gr.Accordion("ℹ️ How It Works & Setup", open=False):
+            _research_status = (
+                "Research mode: 🌐 **Browser Research** (Playwright + DuckDuckGo)"
+                if BROWSER_RESEARCH_ON
+                else "Research mode: 🔎 **Basic Scraper** (httpx + BeautifulSoup)"
+            )
+            if PHOENIX_ON:
+                _phoenix_url = get_phoenix_url() or "http://localhost:6006"
+                _phoenix_status = (
+                    f"Observability: 🔥 **Phoenix tracing ON** → "
+                    f"[{_phoenix_url}]({_phoenix_url})"
+                )
+            else:
+                _phoenix_status = "Observability: off (set `PHOENIX_ENABLED=1` to enable)"
 
         # ── How It Works & Setup ────────────────────────────────────────────
         with gr.Accordion("ℹ️ How It Works & Setup", open=False):

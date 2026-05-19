@@ -122,6 +122,70 @@ class NuanceReport(BaseModel):
     investment_memo: Optional[str] = None   # Only for Watch / Strong Opportunity
 
 
+# ─── Deep Evaluation Schemas ────────────────────────────────────────────────
+
+class ComparableCompany(BaseModel):
+    name: str
+    website: str = "unknown"
+    funding_stage: str
+    funding_amount: str
+    key_investors: list[str]
+    similarity: str
+    key_difference: str
+
+
+class ComparableAnalysis(BaseModel):
+    comparables: list[ComparableCompany]
+    category_label: str
+    market_signal: str
+
+
+class CategoryInsight(BaseModel):
+    category_name: str
+    momentum: str
+    why_vcs_care: str
+    key_success_factors: list[str]
+    common_failure_modes: list[str]
+    category_summary: str
+
+
+class VCSignal(BaseModel):
+    fund_name: str
+    signal_type: str
+    description: str
+    implication: str
+
+
+class VCLandscape(BaseModel):
+    signals: list[VCSignal]
+    yc_active: bool
+    tier1_interest: str
+    vc_summary: str
+
+
+class FounderFitAnalysis(BaseModel):
+    founder_background: str
+    domain_expertise: str
+    execution_evidence: str
+    founder_market_fit_score: int
+    founder_market_fit_reasoning: str
+    idea_market_fit_score: int
+    idea_market_fit_reasoning: str
+    key_strengths: list[str]
+    key_risks: list[str]
+
+
+class PassDecision(BaseModel):
+    decision: str
+    confidence: str
+    primary_reason: str
+    pass_notes: list[str]
+    conviction_points: list[str]
+    key_questions: list[str]
+    follow_up_required: bool
+    follow_up_action: str
+
+
 # ─── Step 6: Investment Verdict ───────────────────────────────────────────────
 
 class VerdictResult(BaseModel):
@@ -142,3 +206,21 @@ class StartupAnalysis(BaseModel):
     scoring: ScoringResult
     verdict: VerdictResult
     nuance: Optional[NuanceReport] = None
+
+
+class DeepStartupAnalysis(BaseModel):
+    """Full analysis: base 7-step pipeline + 5 deep evaluation steps."""
+    base: StartupAnalysis
+    sector_classification: Optional["SectorClassificationResult"] = None
+    comparables: Optional[ComparableAnalysis] = None
+    category_insight: Optional[CategoryInsight] = None
+    vc_landscape: Optional[VCLandscape] = None
+    founder_fit: Optional[FounderFitAnalysis] = None
+    ic_decision: Optional[PassDecision] = None
+
+
+class SectorClassificationResult(BaseModel):
+    sector: str
+    sub_sector: str
+    confidence: str
+    rationale: str
